@@ -32,6 +32,7 @@ import { ShadowSystem } from "./render/shadows.js";
 import { Terrain } from "./terrain/terrain.js";
 import { DepthPass } from "./render/depthPass.js";
 import { PostChain } from "./post/postChain.js";
+import { updateEnv } from "./core/envProfile.js";
 import { whenReady } from "./core/gpuUtil.js";
 import * as loading from "./core/loading.js";
 
@@ -213,6 +214,9 @@ async function boot() {
         time += dt;
 
         pollInput();
+        // Advance snow↔sand blend even when freezeTime zeros dt (uses a frame
+        // step inside updateEnv) so the overlay toggle still completes.
+        updateEnv(dt);
 
         // Per-system CPU timing. Babylon's WebGPU timestamp queries are
         // whole-frame, so the GPU row is a total and these are not subdivisions

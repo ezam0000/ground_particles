@@ -57,6 +57,7 @@ import { ShaderStore } from "@babylonjs/core/Engines/shaderStore";
 import { Matrix, Vector2, Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { Color3 } from "@babylonjs/core/Maths/math.color";
 import { S } from "../core/settings.js";
+import { getLerped, PROFILES } from "../core/envProfile.js";
 
 import postCommonLib from "../shaders/lib/postCommon.wgsl?raw";
 import taaFrag from "../shaders/post/taa.fragment.wgsl?raw";
@@ -319,7 +320,10 @@ export class PostChain {
         };
 
         this.composite.onApply = (e) => {
-            e.setFloat("exposure", S.exposure);
+            e.setFloat(
+                "exposure",
+                getLerped().exposure * (S.exposure / PROFILES.snow.exposure)
+            );
             e.setFloat("contrast", S.contrast);
             e.setFloat("mode", TONEMAP_MODES[S.tonemap] ?? 0);
             e.setFloat("grainAmount", S.grain ? S.grainStrength : 0);

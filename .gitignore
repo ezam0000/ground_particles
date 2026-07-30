@@ -24,3 +24,8 @@ Thumbs.db
 *.webp
 *.mp4
 *.webm
+
+# authored environment detail maps (see public/assets/environments/)
+!public/assets/environments/**/*.png
+!public/assets/environments/**/*.jpg
+!public/assets/environments/**/*.webp

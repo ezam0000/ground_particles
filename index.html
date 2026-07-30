@@ -170,13 +170,43 @@
     }
 
     #hint.show { opacity: 1; }
+
+    /* Persistent Mac-friendly key cheat sheet — bottom-left corner. */
+    #keys {
+        position: fixed;
+        left: 14px;
+        bottom: 14px;
+        z-index: 50;
+        pointer-events: none;
+        font: 400 10px/1.55 ui-monospace, "SF Mono", Menlo, monospace;
+        color: rgba(219, 230, 242, 0.38);
+        text-shadow: 0 1px 10px rgba(0, 0, 0, 0.75);
+        user-select: none;
+    }
+
+    #keys b {
+        display: inline-block;
+        min-width: 5.6em;
+        font-weight: 500;
+        color: rgba(219, 230, 242, 0.62);
+        letter-spacing: 0.04em;
+    }
 </style>
 </head>
 <body>
     <canvas id="view" tabindex="0"></canvas>
 
-    <div id="hint">click to look &nbsp;·&nbsp; wasd to move &nbsp;·&nbsp; f1 for settings</div>
+    <div id="hint">click to look &nbsp;·&nbsp; wasd to move &nbsp;·&nbsp; ` for settings</div>
 
+    <div id="keys">
+        <div><b>click</b> look</div>
+        <div><b>WASD</b> move</div>
+        <div><b>Shift</b> sprint</div>
+        <div><b>RMB</b> snow-surf</div>
+        <div><b>1–5</b> spells</div>
+        <div><b>E</b> snow / sand</div>
+        <div><b>`</b> settings <span style="opacity:0.7">(dev)</span></div>
+    </div>
     <div id="boot">
         <div class="boot-inner">
             <div class="wordmark">SNOWFLOW</div>

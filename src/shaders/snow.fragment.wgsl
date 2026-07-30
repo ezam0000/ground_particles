@@ -33,6 +33,9 @@ var auxTex: texture_2d<f32>;
 var auxTexSampler: sampler;
 var detailTex: texture_2d<f32>;
 var detailTexSampler: sampler;
+/// Sand (or second env) detail map. Mixed with detailTex by envBlend.
+var detailTexB: texture_2d<f32>;
+var detailTexBSampler: sampler;
 var skyLUT: texture_2d<f32>;
 var skyLUTSampler: sampler;
 var cascade0: texture_2d<f32>;
@@ -68,6 +71,12 @@ uniform glintIntensity: f32;
 uniform glintGrazing: f32;
 uniform sssStrength: f32;
 uniform sssRadius: f32;
+/// Virgin surface albedo for the current env blend (snow→sand).
+uniform baseAlbedo: vec3f;
+/// 0 = snow detail/look, 1 = sand. Drives detailTex mix and ice fade.
+uniform envBlend: f32;
+/// Scales ice-channel contribution (0 on full sand).
+uniform iceScale: f32;
 
 uniform fogDensity: f32;
 uniform fogHeightFalloff: f32;
@@ -153,20 +162,40 @@ fn detailNormal(
     world: vec3f, N: vec3f, scale: f32, blendSteep: f32,
     ddxW: vec3f, ddyW: vec3f
 ) -> vec3f {
+    let eb = uniforms.envBlend;
     var n = unpackN(textureSampleGrad(
         detailTex, detailTexSampler, world.xz * scale,
         ddxW.xz * scale, ddyW.xz * scale
     ).xy);
+    if (eb > 0.001) {
+        let nb = unpackN(textureSampleGrad(
+            detailTexB, detailTexBSampler, world.xz * scale,
+            ddxW.xz * scale, ddyW.xz * scale
+        ).xy);
+        n = normalize(mix(n, nb, eb));
+    }
 
     if (blendSteep > 0.01) {
-        let a = unpackN(textureSampleGrad(
+        var a = unpackN(textureSampleGrad(
             detailTex, detailTexSampler, world.xy * scale,
             ddxW.xy * scale, ddyW.xy * scale
         ).xy);
-        let b = unpackN(textureSampleGrad(
+        var b = unpackN(textureSampleGrad(
             detailTex, detailTexSampler, world.zy * scale,
             ddxW.zy * scale, ddyW.zy * scale
         ).xy);
+        if (eb > 0.001) {
+            let a2 = unpackN(textureSampleGrad(
+                detailTexB, detailTexBSampler, world.xy * scale,
+                ddxW.xy * scale, ddyW.xy * scale
+            ).xy);
+            let b2 = unpackN(textureSampleGrad(
+                detailTexB, detailTexBSampler, world.zy * scale,
+                ddxW.zy * scale, ddyW.zy * scale
+            ).xy);
+            a = normalize(mix(a, a2, eb));
+            b = normalize(mix(b, b2, eb));
+        }
         let w = abs(N);
         let sum = w.x + w.y + w.z;
         n = normalize(mix(n, (a * w.z + b * w.x + n * w.y) / sum, blendSteep));
@@ -308,30 +337,38 @@ fn main(input: FragmentInputs) -> FragmentOutputs {
         N = normalize(N + (T * acc.x + B * acc.y) * s);
     }
 
-    let cavity = textureSampleGrad(
+    let cavA = textureSampleGrad(
         detailTex, detailTexSampler, world.xz * 1.7,
         ddxW.xz * 1.7, ddyW.xz * 1.7
     ).z;
+    var cavity = cavA;
+    if (uniforms.envBlend > 0.001) {
+        let cavB = textureSampleGrad(
+            detailTexB, detailTexBSampler, world.xz * 1.7,
+            ddxW.xz * 1.7, ddyW.xz * 1.7
+        ).z;
+        cavity = mix(cavA, cavB, uniforms.envBlend);
+    }
 
     // ------------------------------------------------------------- material
-    // Snow albedo sits in a narrow, high, slightly blue band. It is never 1.0:
-    // pushing albedo to white is what produces the blown-out clipped highlights
-    // that read as "untextured white blob" rather than as snow.
-    var albedo = vec3f(0.855, 0.885, 0.945);
-    var roughness = 0.62;
+    // Base albedo comes from the env blend (snow→sand). Compression / ice /
+    // loose berm still reshape it relative to that base.
+    var albedo = uniforms.baseAlbedo;
+    var roughness = mix(0.62, 0.72, uniforms.envBlend);
     var f0 = vec3f(0.028);
     var thickness = 1.0; // 1 = deep drift, 0 = thin crust
 
-    // Compressed snow: denser, darker, tighter specular, scatters less.
-    albedo = mix(albedo, vec3f(0.62, 0.665, 0.755), compression * 0.85);
+    // Compressed surface: denser, darker, tighter specular, scatters less.
+    albedo = mix(albedo, albedo * vec3f(0.72, 0.74, 0.78), compression * 0.85);
     roughness = mix(roughness, 0.34, compression);
     thickness = mix(thickness, 0.35, compression);
 
-    // Refrozen ice: smooth and genuinely reflective.
-    albedo = mix(albedo, vec3f(0.42, 0.56, 0.70), iceAmount * 0.8);
-    roughness = mix(roughness, 0.07, iceAmount);
-    f0 = mix(f0, vec3f(0.045), iceAmount);
-    thickness = mix(thickness, 0.15, iceAmount);
+    // Refrozen ice: smooth and genuinely reflective. iceScale kills this on sand.
+    let iceAmt = iceAmount * uniforms.iceScale;
+    albedo = mix(albedo, vec3f(0.42, 0.56, 0.70), iceAmt * 0.8);
+    roughness = mix(roughness, 0.07, iceAmt);
+    f0 = mix(f0, vec3f(0.045), iceAmt);
+    thickness = mix(thickness, 0.15, iceAmt);
 
     // Exposed rock. Snow keeps its grip on the flatter faces, so the mask is
     // gated by slope rather than applied flat.
@@ -368,7 +405,7 @@ fn main(input: FragmentInputs) -> FragmentOutputs {
     //     sky out of it.
     if (deformBerm > 0.002) {
         let loose = clamp(deformBerm * 5.0, 0.0, 1.0);
-        albedo = mix(albedo, vec3f(0.895, 0.920, 0.965), loose * 0.55);
+        albedo = mix(albedo, uniforms.baseAlbedo * vec3f(1.05, 1.04, 1.02), loose * 0.55);
         roughness = mix(roughness, 0.78, loose * 0.7);
         thickness = mix(thickness, 1.0, loose * 0.6);
         // Broken snow has crystal faces pointing everywhere, which is where the
@@ -454,7 +491,7 @@ fn main(input: FragmentInputs) -> FragmentOutputs {
     let mip = sqrt(roughness) * 6.0;
     let skyRefl = textureSampleLevel(skyLUT, skyLUTSampler, dirToLatLong(R), mip).rgb;
     let Fr = fresnelSchlickRough(NdotV, f0, roughness);
-    ambient += skyRefl * Fr * uniforms.ambientIntensity * mix(1.0, 2.6, iceAmount);
+    ambient += skyRefl * Fr * uniforms.ambientIntensity * mix(1.0, 2.6, iceAmt);
 
     var color = direct + ambient;
 
@@ -484,7 +521,7 @@ fn main(input: FragmentInputs) -> FragmentOutputs {
             world.xz, N, V, L, footprint,
             uniforms.glintIntensity, uniforms.glintGrazing
         );
-        color += sunRadiance * g * shadow * (1.0 - iceAmount * 0.6) * 0.55;
+        color += sunRadiance * g * shadow * (1.0 - iceAmt * 0.6) * 0.55;
     }
 
     // ---- occlusion, applied last and to everything -------------------------

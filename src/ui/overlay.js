@@ -327,7 +327,11 @@ export class Overlay {
     toggle() {
         this.visible = !this.visible;
         this.el.classList.toggle("show", this.visible);
-        if (this.visible) this._syncWidgets();
+        if (this.visible) {
+            // Free the cursor so the panel is usable (pointer lock steals the mouse).
+            if (document.pointerLockElement) document.exitPointerLock();
+            this._syncWidgets();
+        }
     }
 
     /**

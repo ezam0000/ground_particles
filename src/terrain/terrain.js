@@ -1,6 +1,6 @@
 /**
  * Terrain system: owns the heightfield, the clipmap mesh, the snow material,
- * the shadow-pass materials and the generated detail map.
+ * the shadow-pass materials and the detail maps (procedural bake and/or authored).
  *
  * Per frame this uploads a handful of uniforms and nothing else. No geometry is
  * rebuilt, no buffer is re-uploaded, nothing is allocated.
@@ -11,17 +11,18 @@ import { Color3 } from "@babylonjs/core/Maths/math.color";
 import { ShaderMaterial } from "@babylonjs/core/Materials/shaderMaterial";
 import { ShaderLanguage } from "@babylonjs/core/Materials/shaderLanguage";
 import { ProceduralTexture } from "@babylonjs/core/Materials/Textures/Procedurals/proceduralTexture";
+import { Texture } from "@babylonjs/core/Materials/Textures/texture";
 import { Constants } from "@babylonjs/core/Engines/constants";
 
-import { Heightfield, WORLD_SIZE } from "./heightfield.js";
+import { Heightfield } from "./heightfield.js";
 import { DeformationField } from "./deformation.js";
 import {
     buildClipmapMesh,
     BASE_SPACING,
     GRID_HALF_N,
-    OUTER_EXTENT,
 } from "./clipmapMesh.js";
 import { S } from "../core/settings.js";
+import { PROFILES, getLerped } from "../core/envProfile.js";
 import { CASCADE_COUNT } from "../render/shadows.js";
 import { SPELL_LIGHT_UNIFORMS } from "../spells/spellLights.js";
 import { bakeOnce, whenReady, bindMatrixArray } from "../core/gpuUtil.js";
@@ -31,12 +32,45 @@ const DETAIL_RES = 1024;
 const _splits = new Vector4(0, 0, 0, 0);
 const _lod = new Vector2();
 const _screen = new Vector2();
+const _albedo = new Color3();
 
 const DEBUG_MODES = {
     beauty: 0, deform: 1, normals: 2, depth: 3, cascades: 4,
     footprint: 5, fineNormals: 6, shadow: 7, ndotl: 8, shadowMap: 9,
     albedo: 10,
 };
+
+/**
+ * Try to load an authored detail map. Resolves to null if the URL 404s.
+ * @param {import("@babylonjs/core/scene").Scene} scene
+ * @param {string} url
+ * @returns {Promise<Texture|null>}
+ */
+function tryLoadDetail(scene, url) {
+    return new Promise((resolve) => {
+        let settled = false;
+        const tex = new Texture(
+            url,
+            scene,
+            false, // no mip gen delay — Babylon will still mip
+            false, // invertY
+            Constants.TEXTURE_TRILINEAR_SAMPLINGMODE,
+            () => {
+                if (settled) return;
+                settled = true;
+                tex.wrapU = Constants.TEXTURE_WRAP_ADDRESSMODE;
+                tex.wrapV = Constants.TEXTURE_WRAP_ADDRESSMODE;
+                resolve(tex);
+            },
+            () => {
+                if (settled) return;
+                settled = true;
+                tex.dispose();
+                resolve(null);
+            }
+        );
+    });
+}
 
 export class Terrain {
     /**
@@ -54,9 +88,10 @@ export class Terrain {
         /** The terrain state buffer. Feet, the surf wake and every spell write here. */
         this.deform = new DeformationField(scene);
 
-        // Generated snow grain, tiled at three world scales by the material.
-        this.detailTex = new ProceduralTexture(
-            "detailTex",
+        // Procedural grain bake — used when authored maps are missing, and as
+        // the snow-side default until /assets/.../detail.png exists.
+        this.detailBake = new ProceduralTexture(
+            "detailBake",
             { width: DETAIL_RES, height: DETAIL_RES },
             "detailBake",
             scene,
@@ -69,9 +104,14 @@ export class Terrain {
                 skipSceneRegistration: true,
             }
         );
-        this.detailTex.wrapU = Constants.TEXTURE_WRAP_ADDRESSMODE;
-        this.detailTex.wrapV = Constants.TEXTURE_WRAP_ADDRESSMODE;
-        this.detailTex.refreshRate = 0;
+        this.detailBake.wrapU = Constants.TEXTURE_WRAP_ADDRESSMODE;
+        this.detailBake.wrapV = Constants.TEXTURE_WRAP_ADDRESSMODE;
+        this.detailBake.refreshRate = 0;
+
+        /** @type {import("@babylonjs/core/Materials/Textures/texture").Texture} */
+        this.detailTex = this.detailBake;
+        /** @type {import("@babylonjs/core/Materials/Textures/texture").Texture} */
+        this.detailTexB = this.detailBake;
 
         this.mesh = buildClipmapMesh(scene);
 
@@ -103,13 +143,14 @@ export class Terrain {
                     "shadowTexel", "shadowSoftness", "shadowBias",
                     "detailStrength", "glintIntensity", "glintGrazing",
                     "sssStrength", "sssRadius",
+                    "baseAlbedo", "envBlend", "iceScale",
                     "fogDensity", "fogHeightFalloff", "fogStart", "aerialStrength",
                     "deformCenter", "deformSize", "deformTexel", "deformDepthScale",
                     "ambientIntensity", "debugMode", "screenSize",
                     ...SPELL_LIGHT_UNIFORMS,
                 ],
                 samplers: [
-                    "heightTex", "auxTex", "detailTex", "skyLUT",
+                    "heightTex", "auxTex", "detailTex", "detailTexB", "skyLUT",
                     "cascade0", "cascade1", "cascade2", "deformTex",
                 ],
                 shaderLanguage: ShaderLanguage.WGSL,
@@ -120,6 +161,7 @@ export class Terrain {
         mat.setTexture("heightTex", this.heightfield.heightTex);
         mat.setTexture("auxTex", this.heightfield.auxTex);
         mat.setTexture("detailTex", this.detailTex);
+        mat.setTexture("detailTexB", this.detailTexB);
         mat.setTexture("skyLUT", this.sky.lut);
         for (let i = 0; i < CASCADE_COUNT; i++) {
             mat.setTexture("cascade" + i, this.shadows.maps[i]);
@@ -191,11 +233,23 @@ export class Terrain {
     }
 
     async build() {
-        this.detailTex.setFloat("resolution", DETAIL_RES);
+        this.detailBake.setFloat("resolution", DETAIL_RES);
         // Tilts a grain dome's flank to roughly 30 degrees. Higher reads as
         // gravel, lower stops registering at all.
-        this.detailTex.setFloat("grainScale", 0.013);
-        await bakeOnce(this.detailTex, "detailBake");
+        this.detailBake.setFloat("grainScale", 0.013);
+        await bakeOnce(this.detailBake, "detailBake");
+
+        const snowAuthored = PROFILES.snow.detailUrl
+            ? await tryLoadDetail(this.scene, PROFILES.snow.detailUrl)
+            : null;
+        const sandAuthored = PROFILES.sand.detailUrl
+            ? await tryLoadDetail(this.scene, PROFILES.sand.detailUrl)
+            : null;
+
+        this.detailTex = snowAuthored || this.detailBake;
+        this.detailTexB = sandAuthored || this.detailBake;
+        this.material.setTexture("detailTex", this.detailTex);
+        this.material.setTexture("detailTexB", this.detailTexB);
 
         await this.heightfield.bake();
 
@@ -261,6 +315,7 @@ export class Terrain {
         const m = this.material;
         const hf = this.heightfield;
         const windAngle = (S.windDirection * Math.PI) / 180;
+        const env = getLerped();
 
         // Simulate first, then bind: the material must sample the target that
         // was written this frame, not the one from last frame, or every mark
@@ -306,15 +361,20 @@ export class Terrain {
         m.setFloat("shadowBias", 0.022);
 
         m.setFloat("detailStrength", S.detailNormalStrength);
-        m.setFloat("glintIntensity", S.glintIntensity);
-        m.setFloat("glintGrazing", S.glintGrazing);
-        m.setFloat("sssStrength", S.sssStrength);
-        m.setFloat("sssRadius", S.sssRadius);
+        // Env blend owns SSS / glint / albedo; overlay sliders still scale them.
+        m.setFloat("glintIntensity", env.glintIntensity * (S.glintIntensity / PROFILES.snow.glintIntensity));
+        m.setFloat("glintGrazing", env.glintGrazing);
+        m.setFloat("sssStrength", env.sssStrength * (S.sssStrength / PROFILES.snow.sssStrength));
+        m.setFloat("sssRadius", env.sssRadius * (S.sssRadius / PROFILES.snow.sssRadius));
+        _albedo.set(env.albedo[0], env.albedo[1], env.albedo[2]);
+        m.setColor3("baseAlbedo", _albedo);
+        m.setFloat("envBlend", env.envBlend);
+        m.setFloat("iceScale", env.iceScale);
 
-        m.setFloat("fogDensity", S.fogDensity);
+        m.setFloat("fogDensity", env.fogDensity);
         m.setFloat("fogHeightFalloff", S.fogHeightFalloff);
         m.setFloat("fogStart", S.fogStart);
-        m.setFloat("aerialStrength", S.aerialStrength);
+        m.setFloat("aerialStrength", env.aerialStrength);
         m.setFloat("ambientIntensity", S.ambientIntensity);
 
         m.setVector2("deformCenter", deformCenter);
@@ -384,7 +444,11 @@ export class Terrain {
     dispose() {
         this.mesh.dispose();
         this.material.dispose();
-        this.detailTex.dispose();
+        if (this.detailTex !== this.detailBake) this.detailTex.dispose();
+        if (this.detailTexB !== this.detailBake && this.detailTexB !== this.detailTex) {
+            this.detailTexB.dispose();
+        }
+        this.detailBake.dispose();
         this.deform.dispose();
         this.heightfield.dispose();
     }

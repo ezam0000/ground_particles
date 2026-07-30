@@ -57,6 +57,7 @@ uniform fogHeightFalloff: f32;
 uniform fogStart: f32;
 uniform aerialStrength: f32;
 uniform ambientIntensity: f32;
+uniform grainAlbedo: vec3f;
 
 uniform spellLightPos: array<vec4f, 4>;
 uniform spellLightCol: array<vec4f, 4>;
@@ -108,7 +109,7 @@ fn main(input: FragmentInputs) -> FragmentOutputs {
 
     // Snow crystals in air scatter almost isotropically at the surface and very
     // strongly forward through the volume, so both terms are needed.
-    let albedo = vec3f(0.92, 0.94, 0.98);
+    let albedo = uniforms.grainAlbedo;
     let diff = wrapDiffuse(dot(N, L), 0.75);
     var color = albedo * INV_PI * sun * diff * shadow;
 

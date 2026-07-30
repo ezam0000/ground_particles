@@ -10,6 +10,10 @@
 
 /** @type {Record<string, number|boolean|string>} */
 export const S = {
+    // ----------------------------------------------------------- environment
+    /** Target ground biome. Look and refill rates ease via envProfile blend. */
+    environment: "snow", // "snow" | "sand"
+
     // ---------------------------------------------------------------- quality
     preset: "ultra",
     resolutionScale: 1.0,
@@ -116,6 +120,12 @@ export const S = {
  * @type {{group:string, items:Array<{k:string,l:string,t:string,min?:number,max?:number,step?:number,opts?:string[]}>}[]}
  */
 export const SCHEMA = [
+    {
+        group: "Environment",
+        items: [
+            { k: "environment", l: "Ground", t: "e", opts: ["snow", "sand"] },
+        ],
+    },
     {
         group: "Sun & Sky",
         items: [

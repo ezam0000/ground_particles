@@ -25,9 +25,10 @@ import { ShaderMaterial } from "@babylonjs/core/Materials/shaderMaterial";
 import { ShaderLanguage } from "@babylonjs/core/Materials/shaderLanguage";
 import { RawTexture } from "@babylonjs/core/Materials/Textures/rawTexture";
 import { Constants } from "@babylonjs/core/Engines/constants";
-import { Vector3, Vector4 } from "@babylonjs/core/Maths/math";
+import { Vector3, Vector4, Color3 } from "@babylonjs/core/Maths/math";
 
 import { S } from "../core/settings.js";
+import { getLerped } from "../core/envProfile.js";
 import { whenReady, bindMatrixArray } from "../core/gpuUtil.js";
 import { CASCADE_COUNT } from "../render/shadows.js";
 import { SPELL_LIGHT_UNIFORMS } from "../spells/spellLights.js";
@@ -55,6 +56,7 @@ const TERMINAL = 1.9;
 const _right = new Vector3();
 const _up = new Vector3();
 const _splits = new Vector4();
+const _grain = new Color3();
 
 export class SprayField {
     /**
@@ -124,7 +126,7 @@ export class SprayField {
                     "cascadeMatrices", "cascadeSplits", "cascadeParams",
                     "shadowTexel", "shadowSoftness", "shadowBias",
                     "fogDensity", "fogHeightFalloff", "fogStart", "aerialStrength",
-                    "ambientIntensity",
+                    "ambientIntensity", "grainAlbedo",
                     ...SPELL_LIGHT_UNIFORMS,
                 ],
                 samplers: ["sprayTex", "skyLUT", "cascade0", "cascade1", "cascade2"],
@@ -285,11 +287,14 @@ export class SprayField {
         m.setFloat("shadowSoftness", 1.6);
         m.setFloat("shadowBias", 0.05);
 
-        m.setFloat("fogDensity", S.fogDensity);
+        m.setFloat("fogDensity", getLerped().fogDensity);
         m.setFloat("fogHeightFalloff", S.fogHeightFalloff);
         m.setFloat("fogStart", S.fogStart);
-        m.setFloat("aerialStrength", S.aerialStrength);
+        m.setFloat("aerialStrength", getLerped().aerialStrength);
         m.setFloat("ambientIntensity", S.ambientIntensity);
+        const ga = getLerped().sprayAlbedo;
+        _grain.set(ga[0], ga[1], ga[2]);
+        m.setColor3("grainAlbedo", _grain);
     }
 
     async warmUp() {

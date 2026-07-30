@@ -20,6 +20,8 @@
  * Zero allocation: brushes are pushed straight into the field's staging array.
  */
 
+import { getLerped } from "../core/envProfile.js";
+
 /**
  * Boot geometry, metres. `WIDTH` is the short-axis radius, so the print is
  * 20 cm across and 34 cm long — a boot plus the collapse of the snow around it,
@@ -67,6 +69,7 @@ export class SnowContact {
     update(dt) {
         const ch = this.character;
         const f = this.field;
+        this._contactScale = getLerped().contactScale;
 
         const dx = ch.position.x - this._prevX;
         const dz = ch.position.z - this._prevZ;
@@ -95,17 +98,18 @@ export class SnowContact {
             // Recomputed here rather than read off the controller, so it cannot
             // be a frame stale relative to the plant it is describing.
             const impact = Math.min(1.3, 0.35 + ch.speed / 5.4);
+            const cs = this._contactScale;
             f.brush(
                 px, pz,
                 BOOT_WIDTH,
                 // Depth: a boot sinks 13-27 cm into unpacked snow depending on
                 // how hard it lands. Deeper than that and the character is
                 // wading, which is a different animation problem.
-                0.17 + 0.14 * impact,
+                (0.17 + 0.14 * impact) * cs,
                 // The berm is the whole point. Mass pushed out of the hole has
                 // to go somewhere, and seeing it pile at the rim is what makes
                 // the print read as displaced snow rather than as a dark decal.
-                0.10 + 0.08 * impact,
+                (0.10 + 0.08 * impact) * cs,
                 0.9,                    // compression: trodden snow is dense
                 0,                      // no ice
                 ch.facing,
@@ -189,8 +193,8 @@ export class SnowContact {
         this.field.brush(
             ch.position.x, ch.position.z,
             0.22,
-            0.20 * k * w,
-            0.22 * k * w,
+            0.20 * k * w * this._contactScale,
+            0.22 * k * w * this._contactScale,
             0.8 * k * w,
             0,
             ch.facing,
@@ -236,11 +240,12 @@ export class SnowContact {
         const gx = ch.position.x + rx * lean * 0.12;
         const gz = ch.position.z + rz * lean * 0.12;
 
+        const cs = this._contactScale;
         f.brush(
             gx, gz,
             SURF_WIDTH * (1 + 0.35 * fast),
-            1.20 * k,   // deep — a run should be visible from across the field
-            0.30 * k,
+            1.20 * k * cs,   // deep — a run should be visible from across the field
+            0.30 * k * cs,
             4.0 * k,    // the board packs the trench floor hard
             0,
             yaw,
@@ -262,7 +267,7 @@ export class SnowContact {
         const sideR = 0.5 - lean * 0.5;
 
         const off = SURF_WIDTH * (1.5 + 0.5 * fast);
-        const throwK = 0.75 * k * (0.55 + 0.9 * outside) * (1 + 0.5 * fast);
+        const throwK = 0.75 * k * (0.55 + 0.9 * outside) * (1 + 0.5 * fast) * cs;
 
         f.brush(
             ch.position.x - rx * off, ch.position.z - rz * off,

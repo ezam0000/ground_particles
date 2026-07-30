@@ -5,6 +5,8 @@
  * Mouse look uses pointer lock, which frees the right button for snow-surf.
  */
 
+import { S, set } from "./settings.js";
+
 export const input = {
     // Movement axes, camera-relative, already normalised to a unit disc.
     moveX: 0,
@@ -89,6 +91,12 @@ export function initInput(canvas, hooks) {
         if (e.code === "F1" || e.code === "Backquote") {
             e.preventDefault();
             onToggleOverlay?.();
+            return;
+        }
+        // Snow ↔ sand — no menu required.
+        if (e.code === "KeyE" && !e.repeat) {
+            e.preventDefault();
+            set("environment", S.environment === "sand" ? "snow" : "sand");
             return;
         }
         if (e.repeat) return;

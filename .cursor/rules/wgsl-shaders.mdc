@@ -1,0 +1,36 @@
+---
+description: WGSL registration, includes, and shading conventions
+globs: src/shaders/**/*.wgsl
+alwaysApply: false
+---
+
+# WGSL
+
+## Registration
+
+- Import new sources in `src/shaders/registry.js` with `?raw`.
+- Shared libs → `ShaderStore.IncludesShadersStoreWGSL` under `snow*` keys; pull in with `#include<snowFoo>`.
+- Full stages → `ShaderStore.ShadersStoreWGSL` as `<name>VertexShader` / `<name>PixelShader` (Babylon WGSL naming).
+- Call `registerShaders()` once before any material is built (done in `main.js`).
+
+## Shared includes (`lib/`)
+
+| Include | Role |
+|---------|------|
+| `snowNoise` / `snowTerrain` | height / landform (bake + runtime must stay identical) |
+| `snowDeform` | deformation buffer sample / displace |
+| `snowShading` | BRDF, SSS, glints, shadow filter |
+| `snowShadowLookup` | cascade PCSS |
+| `snowAtmosphere` | fog / aerial / sky LUT lookups |
+| `snowClipmap` | clipmap vertex placement |
+| `snowCharSkin` / `snowWake` / `snowWater` / `snowCrystal` | domain geometry |
+| `snowSpellLights` | four-slot dynamic light pool |
+| `snowPostCommon` | post helpers |
+
+Bake passes and beauty passes that share landform logic must `#include` the same lib text — do not duplicate formulas in JS or a second WGSL copy.
+
+## Conventions
+
+- Prefer explanatory header comments for non-obvious math (order of normal combination, sign of light vectors, etc.).
+- Match existing uniform/texture naming on sibling materials so CPU upload paths stay consistent.
+- Depth / prepass variants reuse the beauty vertex placement includes where possible; only diverge for discard/alpha cases (e.g. wake prepass).

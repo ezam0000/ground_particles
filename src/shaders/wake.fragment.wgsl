@@ -62,6 +62,7 @@ uniform ambientIntensity: f32;
 uniform sssStrength: f32;
 uniform glintIntensity: f32;
 uniform glintGrazing: f32;
+uniform grainAlbedo: vec3f;
 uniform wakeTime: f32;
 /// Per-term diagnostic. See the switch at the bottom; `SNOWFLOW.wake.debug`.
 uniform wakeDebug: f32;
@@ -136,7 +137,7 @@ fn main(input: FragmentInputs) -> FragmentOutputs {
 
     // ------------------------------------------------------------- material
     // Freshly displaced snow: brighter and rougher than the pack it came out of.
-    let albedo = vec3f(0.895, 0.920, 0.965);
+    let albedo = uniforms.grainAlbedo;
     let roughness = 0.80;
     let f0 = vec3f(0.026);
 

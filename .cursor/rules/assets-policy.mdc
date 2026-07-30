@@ -1,0 +1,30 @@
+---
+description: Current asset policy and how to extend when adding custom media
+alwaysApply: true
+---
+
+# Assets
+
+Runtime look is mostly procedural. Authored environment detail maps are additive.
+
+## Layout
+
+```
+public/assets/environments/snow/detail.png   # optional 1024² RGBA
+public/assets/environments/sand/detail.png
+```
+
+Channels (match `detailBake`): RG = tangent normal XY (`n*0.5+0.5`), B = cavity, A = height. Missing file → procedural bake for that side.
+
+## Environments
+
+- `S.environment` is the target (`snow` | `sand`).
+- `envProfile.js` eases `envBlend` 0→1; systems call `getLerped()` — do not hard-swap mid-frame or clear the deform buffer.
+- Higgsfield: generate height-source tiles, pack to RGBA in sandbox; do not prompt for packed normal maps directly.
+- Do not rewrite spray particles for env switches — only tint/scale via profile.
+
+## Rules
+
+- Keep binaries under `public/assets/…`; Vite serves them. `.gitignore` allows env PNGs only.
+- Load behind loading phases; modular loaders next to the consumer — not in `main.js`.
+- Prefer authored when present; do not run bake and authored for the same slot.

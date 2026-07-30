@@ -25,6 +25,7 @@ import { ShaderLanguage } from "@babylonjs/core/Materials/shaderLanguage";
 import { Vector2 } from "@babylonjs/core/Maths/math.vector";
 
 import { S } from "../core/settings.js";
+import { getLerped } from "../core/envProfile.js";
 import { whenReady } from "../core/gpuUtil.js";
 
 /**
@@ -221,7 +222,7 @@ export class DeformationField {
         pt.setFloat("res", this.res);
         pt.setFloat("dt", relaxDt);
         pt.setFloat("brushCount", this._brushCount);
-        pt.setFloat("refillRate", S.refillRate);
+        pt.setFloat("refillRate", S.refillRate * getLerped().refillMul);
         pt.setFloat("maxDepth", 0.55 * S.deformDepth);
         pt.setFloat("maxBerm", 0.34 * S.deformBerm);
         pt.setFloat("windAngle", (S.windDirection * Math.PI) / 180);

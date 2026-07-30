@@ -32,9 +32,10 @@ import { ShaderMaterial } from "@babylonjs/core/Materials/shaderMaterial";
 import { ShaderLanguage } from "@babylonjs/core/Materials/shaderLanguage";
 import { RawTexture } from "@babylonjs/core/Materials/Textures/rawTexture";
 import { Constants } from "@babylonjs/core/Engines/constants";
-import { Vector3, Vector4 } from "@babylonjs/core/Maths/math";
+import { Vector3, Vector4, Color3 } from "@babylonjs/core/Maths/math";
 
 import { S } from "../core/settings.js";
+import { getLerped, PROFILES } from "../core/envProfile.js";
 import { whenReady, bindMatrixArray } from "../core/gpuUtil.js";
 import { CASCADE_COUNT } from "../render/shadows.js";
 import { SPELL_LIGHT_UNIFORMS } from "../spells/spellLights.js";
@@ -77,6 +78,7 @@ const WAKE_CASCADES = 2;
 // ------------------------------------------------------- module-scope scratch
 const _splits = new Vector4();
 const _fwd = new Vector3();
+const _grain = new Color3();
 
 export class SurfWake {
     /**
@@ -172,7 +174,7 @@ export class SurfWake {
                     "shadowTexel", "shadowSoftness", "shadowBias",
                     "fogDensity", "fogHeightFalloff", "fogStart", "aerialStrength",
                     "ambientIntensity", "sssStrength",
-                    "glintIntensity", "glintGrazing", "wakeTime", "wakeDebug",
+                    "glintIntensity", "glintGrazing", "grainAlbedo", "wakeTime", "wakeDebug",
                     ...SPELL_LIGHT_UNIFORMS,
                 ],
                 samplers: ["wakeTex", "skyLUT", "cascade0", "cascade1", "cascade2"],
@@ -631,14 +633,17 @@ export class SurfWake {
         m.setFloat("shadowSoftness", 1.5);
         m.setFloat("shadowBias", 0.018);
 
-        m.setFloat("fogDensity", S.fogDensity);
+        const env = getLerped();
+        m.setFloat("fogDensity", env.fogDensity);
         m.setFloat("fogHeightFalloff", S.fogHeightFalloff);
         m.setFloat("fogStart", S.fogStart);
-        m.setFloat("aerialStrength", S.aerialStrength);
+        m.setFloat("aerialStrength", env.aerialStrength);
         m.setFloat("ambientIntensity", S.ambientIntensity);
-        m.setFloat("sssStrength", S.sssStrength);
-        m.setFloat("glintIntensity", S.glintIntensity);
-        m.setFloat("glintGrazing", S.glintGrazing);
+        m.setFloat("sssStrength", env.sssStrength * (S.sssStrength / PROFILES.snow.sssStrength));
+        m.setFloat("glintIntensity", env.glintIntensity * (S.glintIntensity / PROFILES.snow.glintIntensity));
+        m.setFloat("glintGrazing", env.glintGrazing);
+        _grain.set(env.sprayAlbedo[0], env.sprayAlbedo[1], env.sprayAlbedo[2]);
+        m.setColor3("grainAlbedo", _grain);
 
         for (let i = 0; i < this._depthMats.length; i++) {
             this._depthMats[i].setFloat("wakeCount", this._count);
