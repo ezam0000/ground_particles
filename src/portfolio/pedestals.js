@@ -33,7 +33,7 @@ const MODEL_BY_ID = {
     "northeastern-university": "neu2.glb",
     carebeam: "carebeam.glb",
     "apple-inc": "apple.glb",
-    "goldman-sachs": "latest_job.glb",
+    "goldman-sachs": "goldman.glb",
     secret: "latest_job_secret.glb",
 };
 const PROJECTS_GLB = "projects.glb";
@@ -70,7 +70,7 @@ const _orient = new Quaternion();
 const _splits = new Vector4();
 const _min = new Vector3();
 const _max = new Vector3();
-const _fill = new Color3(2.4, 2.05, 1.55);
+const _fill = new Color3(0.55, 0.48, 0.38);
 const _near = [];
 /** Prop-only key lights (6 slots × vec4). Pre-sized — no alloc in update. */
 const KEY_LIGHT_MAX = 6;
@@ -327,10 +327,10 @@ export class Pedestals {
         mat.backFaceCulling = true;
         mat.setColor3("albedoColor", albedo);
         mat.setFloat("useTex", textureOrNull ? 1 : 0);
-        // Dark baked GLBs need exposure + glow or they read as black sticks.
-        mat.setFloat("panelGlow", 0.85);
-        mat.setFloat("albedoGain", 2.8);
-        mat.setColor3("fillRadiance", new Color3(2.4, 2.05, 1.55));
+        // Crushed albedos are already bright — keep lift modest so bloom stays calm.
+        mat.setFloat("panelGlow", 0.12);
+        mat.setFloat("albedoGain", 1.15);
+        mat.setColor3("fillRadiance", new Color3(0.55, 0.48, 0.38));
         mat.setFloat("keyLightCount", 0);
         mat.setArray4("keyLightPos", _keyPos);
         mat.setArray4("keyLightCol", _keyCol);
@@ -438,7 +438,7 @@ export class Pedestals {
             bestPlaza.cx, playerPos.y + 5.5, bestPlaza.cz,
             bestPlaza.radius * 2.0,
             bestPlaza.light[0], bestPlaza.light[1], bestPlaza.light[2],
-            inspecting ? 12.0 : 10.0
+            inspecting ? 6.0 : 4.5
         );
 
         _near.length = 0;
@@ -463,26 +463,26 @@ export class Pedestals {
             fx /= fl; fz /= fl;
             const rx = -fz;
             const rz = fx;
-            kn = pushKey(kn, px + fx * 2.4, py + 0.9, pz + fz * 2.4, 8.0, col[0], col[1], col[2], 22.0);
-            kn = pushKey(kn, px - fx * 2.2, py + 1.1, pz - fz * 2.2, 7.5, col[0], col[1], col[2], 14.0);
-            kn = pushKey(kn, px + rx * 2.3, py + 1.2, pz + rz * 2.3, 7.0, col[0], col[1], col[2], 16.0);
-            kn = pushKey(kn, px - rx * 2.3, py + 1.2, pz - rz * 2.3, 7.0, col[0], col[1], col[2], 16.0);
-            kn = pushKey(kn, px, py + 3.2, pz, 9.0, 1.0, 0.95, 0.85, 18.0);
-            kn = pushKey(kn, cameraPos.x, cameraPos.y + 0.4, cameraPos.z, 6.0, 1.0, 0.96, 0.88, 10.0);
-            lights.add(px + fx * 2.4, py + 0.9, pz + fz * 2.4, 8.0, col[0], col[1], col[2], 10.0);
-            lights.add(px, py + 3.0, pz, 9.0, col[0], col[1], col[2], 8.0);
+            kn = pushKey(kn, px + fx * 2.4, py + 0.9, pz + fz * 2.4, 8.0, col[0], col[1], col[2], 7.0);
+            kn = pushKey(kn, px - fx * 2.2, py + 1.1, pz - fz * 2.2, 7.5, col[0], col[1], col[2], 4.5);
+            kn = pushKey(kn, px + rx * 2.3, py + 1.2, pz + rz * 2.3, 7.0, col[0], col[1], col[2], 5.5);
+            kn = pushKey(kn, px - rx * 2.3, py + 1.2, pz - rz * 2.3, 7.0, col[0], col[1], col[2], 5.5);
+            kn = pushKey(kn, px, py + 3.2, pz, 9.0, 1.0, 0.95, 0.85, 6.0);
+            kn = pushKey(kn, cameraPos.x, cameraPos.y + 0.4, cameraPos.z, 6.0, 1.0, 0.96, 0.88, 3.5);
+            lights.add(px + fx * 2.4, py + 0.9, pz + fz * 2.4, 8.0, col[0], col[1], col[2], 4.0);
+            lights.add(px, py + 3.0, pz, 9.0, col[0], col[1], col[2], 3.5);
         } else {
             kn = pushKey(
                 kn,
                 bestPlaza.cx, playerPos.y + 6.5, bestPlaza.cz,
                 bestPlaza.radius * 2.2,
                 bestPlaza.light[0], bestPlaza.light[1], bestPlaza.light[2],
-                14.0
+                5.0
             );
             kn = pushKey(
                 kn,
                 playerPos.x, playerPos.y + 4.0, playerPos.z,
-                10.0, 1.0, 0.92, 0.78, 9.0
+                10.0, 1.0, 0.92, 0.78, 3.5
             );
             for (let i = 0; i < 3 && i < _near.length; i++) {
                 const p = _near[i].p;
@@ -494,12 +494,12 @@ export class Pedestals {
                 kn = pushKey(
                     kn,
                     p.x + fx * 2.6, p.y + 1.2, p.z + fz * 2.6,
-                    7.5, col[0], col[1], col[2], 16.0
+                    7.5, col[0], col[1], col[2], 5.5
                 );
                 if (i < 2) {
                     lights.add(
                         p.x + fx * 2.6, p.y + 1.2, p.z + fz * 2.6,
-                        7.0, col[0], col[1], col[2], 8.0
+                        7.0, col[0], col[1], col[2], 3.0
                     );
                 }
             }
@@ -515,14 +515,14 @@ export class Pedestals {
                 kn = pushKey(
                     kn,
                     p.x + rx * 2.4, p.y + 1.4, p.z + rz * 2.4,
-                    6.5, col[0], col[1], col[2], 12.0
+                    6.5, col[0], col[1], col[2], 4.0
                 );
             }
         }
 
-        const ambientMul = inspecting ? 2.8 : 2.2;
-        const gain = inspecting ? 3.2 : 2.8;
-        const glow = inspecting ? 1.05 : 0.85;
+        const ambientMul = inspecting ? 1.45 : 1.25;
+        const gain = inspecting ? 1.25 : 1.15;
+        const glow = inspecting ? 0.18 : 0.12;
 
         for (const { mat: m } of this._mats) {
             m.setVector3("cameraPos", cameraPos);

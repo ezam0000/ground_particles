@@ -1,9 +1,8 @@
 // -----------------------------------------------------------------------------
 // Portfolio pedestal material (authored GLB albedo + dedicated key lights).
 //
-// Spell-pool lights alone are too soft for near-black baked GLB albedos.
-// Props carry their own 6-slot key lights with soft falloff, plus albedo
-// exposure so the texture stays readable from every camera angle.
+// Pillars need readable faces from every angle without blooming: modest fill /
+// key lights, high roughness, and a small panelGlow on already-crushed albedos.
 // -----------------------------------------------------------------------------
 
 #include<snowNoise>
@@ -83,9 +82,8 @@ fn main(input: FragmentInputs) -> FragmentOutputs {
 
     let tex = textureSample(albedoTex, albedoTexSampler, input.vUV).rgb;
     var albedo = mix(uniforms.albedoColor, tex, uniforms.useTex);
-    // Lift crushed blacks before any lighting (baked GLBs are often near-zero).
-    albedo = albedo * uniforms.albedoGain + vec3f(0.035);
-    albedo = min(albedo, vec3f(1.4));
+    albedo = albedo * uniforms.albedoGain + vec3f(0.01);
+    albedo = min(albedo, vec3f(1.0));
 
     let NdotL = dot(N, L);
     let noiseRot = ign(input.position.xy) * 6.28318530718;
@@ -94,32 +92,32 @@ fn main(input: FragmentInputs) -> FragmentOutputs {
         shadow = sunShadow(world, N, input.vViewDist, noiseRot);
     }
     // Soft floor — cascade shadow must not silhouette a pillar.
-    shadow = mix(0.88, 1.0, shadow);
+    shadow = mix(0.78, 1.0, shadow);
 
-    let roughness = 0.62;
-    let sun = uniforms.sunRadiance * 1.55;
+    let roughness = 0.78;
+    let sun = uniforms.sunRadiance * 1.1;
 
-    var direct = albedo * INV_PI * sun * wrapDiffuse(NdotL, 0.48) * shadow;
+    var direct = albedo * INV_PI * sun * wrapDiffuse(NdotL, 0.42) * shadow;
     if (NdotL > 0.0) {
         let H = normalize(V + L);
         let D = distributionGGX(clamp(dot(N, H), 0.0, 1.0), roughness);
         let Vis = visSmithGGXCorrelated(clamp(dot(N, V), 1e-4, 1.0), NdotL, roughness);
-        let F = fresnelSchlick(clamp(dot(V, H), 0.0, 1.0), vec3f(0.04));
-        direct += sun * D * Vis * F * NdotL * shadow * 0.28;
+        let F = fresnelSchlick(clamp(dot(V, H), 0.0, 1.0), vec3f(0.03));
+        direct += sun * D * Vis * F * NdotL * shadow * 0.12;
     }
 
     // Bounce from the opposite side of the sun — fills the backlit face.
     let Lb = -L;
-    direct += albedo * INV_PI * sun * 0.55 * wrapDiffuse(dot(N, Lb), 0.6);
+    direct += albedo * INV_PI * sun * 0.28 * wrapDiffuse(dot(N, Lb), 0.55);
 
     // Camera key — always lights whatever face you are looking at.
     direct += albedo * INV_PI * uniforms.fillRadiance
-            * wrapDiffuse(dot(N, V), 0.7);
+            * wrapDiffuse(dot(N, V), 0.6);
 
     // Hemisphere ambient — stronger than scene default for props.
     var irradiance = shIrradiance(N, uniforms.shR) * uniforms.ambientIntensity;
     irradiance += shIrradiance(vec3f(0.0, 1.0, 0.0), uniforms.shR)
-                * uniforms.ambientIntensity * 0.65
+                * uniforms.ambientIntensity * 0.4
                 * clamp(-N.y * 0.5 + 0.5, 0.0, 1.0)
                 * vec3f(0.85, 0.68, 0.45);
 
@@ -136,17 +134,17 @@ fn main(input: FragmentInputs) -> FragmentOutputs {
         if (att <= 0.0) { continue; }
         let Lk = d * inverseSqrt(max(dist2, 1e-8));
         let rad = uniforms.keyLightCol[i].rgb * uniforms.keyLightCol[i].w * att;
-        color += albedo * INV_PI * wrapDiffuse(dot(N, Lk), 0.72) * rad;
+        color += albedo * INV_PI * wrapDiffuse(dot(N, Lk), 0.65) * rad;
     }
 
     if (uniforms.spellLightCount > 0.5) {
         color += spellLightingSurface(
-            world, N, V, albedo, vec3f(0.04), roughness, 0.55,
+            world, N, V, albedo, vec3f(0.03), roughness, 0.5,
             uniforms.spellLightPos, uniforms.spellLightCol, uniforms.spellLightCount
         );
     }
 
-    // Guaranteed texture visibility.
+    // Soft texture lift — keep small so bright albedos do not bloom.
     color += albedo * uniforms.panelGlow;
 
     color = applyAerial(
