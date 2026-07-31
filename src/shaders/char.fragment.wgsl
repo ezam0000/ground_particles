@@ -40,6 +40,8 @@ varying vViewDist: f32;
 
 var skyLUT: texture_2d<f32>;
 var skyLUTSampler: sampler;
+var shirtTex: texture_2d<f32>;
+var shirtTexSampler: sampler;
 var cascade0: texture_2d<f32>;
 var cascade0Sampler: sampler;
 var cascade1: texture_2d<f32>;
@@ -74,6 +76,10 @@ uniform sssStrength: f32;
 /// only place the physical scale of the cloth is decided.
 uniform weaveDensity: f32;
 uniform screenSize: vec2f;
+/// Material slot that samples the authored floral shirt albedo (M_ROBE = 0).
+uniform shirtSlot: f32;
+/// (weaveU, weaveV) of the shirt panel — used to normalize print UV back to 0..1.
+uniform shirtWeave: vec2f;
 
 uniform spellLightPos: array<vec4f, 4>;
 uniform spellLightCol: array<vec4f, 4>;
@@ -176,6 +182,22 @@ fn main(input: FragmentInputs) -> FragmentOutputs {
     let transmit = par.z;
     let weaveDepth = par.w;
 
+    // Hawaiian shirt: floral replaces the dark base on M_ROBE only.
+    // Sample unconditionally — WGSL forbids textureSample in non-uniform control flow.
+    // vUV is (u*weaveU, v*weaveV) — divide the weave scale back out so one
+    // full print tile spans the whole garment, not a thin arc of it.
+    // Boost keeps cream flowers readable under this sun + AgX (tuned for snow).
+    let printUV = vec2f(
+        fract(input.vUV.x / max(uniforms.shirtWeave.x, 1e-4)),
+        fract(input.vUV.y / max(uniforms.shirtWeave.y, 1e-4))
+    );
+    let printSamp = textureSample(shirtTex, shirtTexSampler, printUV).rgb;
+    let print = min(printSamp * vec3f(2.4), vec3f(0.95));
+    let usePrint = select(0.0, 1.0, slot == i32(uniforms.shirtSlot + 0.5));
+    albedo = mix(albedo, print, usePrint);
+    // Soften weave / AO crush on the print so flowers stay visible.
+    let weaveDepthEff = mix(weaveDepth, weaveDepth * 0.15, usePrint);
+
     // ------------------------------------------------------------ weave detail
     let wuv = input.vUV * uniforms.weaveDensity;
     let dp1 = dpdx(world);
@@ -191,10 +213,10 @@ fn main(input: FragmentInputs) -> FragmentOutputs {
     let uvFoot = max(length(duv1), length(duv2));
     let weaveFade = 1.0 - smoothstep(0.10, 0.45, uvFoot);
     var cavity = 1.0;
-    if (weaveDepth > 0.001 && weaveFade > 0.001) {
+    if (weaveDepthEff > 0.001 && weaveFade > 0.001) {
         let w = weave(wuv);
-        N = normalize(N + (TBN[0] * w.x + TBN[1] * w.y) * weaveDepth * weaveFade * 0.5);
-        cavity = mix(1.0, w.z, weaveFade * 0.8);
+        N = normalize(N + (TBN[0] * w.x + TBN[1] * w.y) * weaveDepthEff * weaveFade * 0.5);
+        cavity = mix(1.0, w.z, weaveFade * 0.8 * (1.0 - usePrint * 0.85));
     }
 
     // Slub: real yarn is not uniform, and a little variation in the base tone
@@ -202,13 +224,14 @@ fn main(input: FragmentInputs) -> FragmentOutputs {
     // centimetre scale, an order of magnitude coarser than the weave, so unlike
     // the weave it survives to the distance the figure is actually seen at.
     let slub = noise2(input.vUV * vec2f(9.0, 26.0)) * 0.5 + 0.5;
-    albedo *= 0.90 + 0.20 * slub;
+    albedo *= mix(0.90 + 0.20 * slub, 1.0, usePrint);
     roughness = clamp(roughness * (0.94 + 0.12 * slub), 0.05, 1.0);
 
     // Baked at the vertex, times the weave cavity. No screen-space occlusion:
     // it is a two-metre silhouette against forty metres of snow, and the pass
     // does not pay for itself on this content.
     var ao = input.vAux.y * cavity;
+    ao = mix(ao, max(ao, 0.88), usePrint);
 
     // ------------------------------------------------------------- lighting
     let NdotL = dot(N, L);

@@ -6,7 +6,7 @@
  * rebuilt, no buffer is re-uploaded, nothing is allocated.
  */
 
-import { Vector2, Vector3, Vector4 } from "@babylonjs/core/Maths/math.vector";
+import { Vector2, Vector4 } from "@babylonjs/core/Maths/math.vector";
 import { Color3 } from "@babylonjs/core/Maths/math.color";
 import { ShaderMaterial } from "@babylonjs/core/Materials/shaderMaterial";
 import { ShaderLanguage } from "@babylonjs/core/Materials/shaderLanguage";

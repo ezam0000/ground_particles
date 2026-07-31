@@ -1,0 +1,42 @@
+[
+  {
+    "id": "secret",
+    "kind": "job",
+    "title": "Redacted",
+    "period": "2026 - Pending",
+    "description": "Role details are classified for now. Enter a clearance code if you have one.",
+    "link": null,
+    "image": null,
+    "isNew": true
+  },
+  {
+    "id": "carebeam",
+    "kind": "job",
+    "title": "CareBeam",
+    "period": "2024 - 2026",
+    "description": "Founding Engineer. Built the clinical automation platform now used by clinics at Integrated major EHR providers including Healthie, Athena, Veradigm, and ModMed, plus scheduling, documentation, and workflow automation.",
+    "link": "https://trycarebeam.com/",
+    "image": "/assets/portfolio/org/carebeam.png",
+    "isNew": false
+  },
+  {
+    "id": "apple-inc",
+    "kind": "job",
+    "title": "Apple Inc.",
+    "period": "2020 - 2024",
+    "description": "Software Engineer through Apple's Silicon transition. Shipped across A14-A17 and M1-M3 chips. Machine learning integration and performance work.",
+    "link": null,
+    "image": "/assets/portfolio/org/apple-inc.jpg",
+    "isNew": false
+  },
+  {
+    "id": "goldman-sachs",
+    "kind": "job",
+    "title": "Goldman Sachs",
+    "period": "2019 - Business Analyst",
+    "description": "Pre-IPO venture vetting. Data, sentiment analysis, process optimization. Where I learned how money thinks.",
+    "link": null,
+    "image": "/assets/portfolio/org/goldman-sachs.png",
+    "isNew": false
+  }
+]

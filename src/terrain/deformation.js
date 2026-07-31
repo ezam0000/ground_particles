@@ -226,6 +226,7 @@ export class DeformationField {
         pt.setFloat("maxDepth", 0.55 * S.deformDepth);
         pt.setFloat("maxBerm", 0.34 * S.deformBerm);
         pt.setFloat("windAngle", (S.windDirection * Math.PI) / 180);
+        this._pushEnvRates(pt);
 
         pt.render();
 
@@ -235,12 +236,35 @@ export class DeformationField {
         return pt;
     }
 
+    /**
+     * Push sand/snow rate multipliers into a deform target.
+     * @param {import("@babylonjs/core/Materials/Textures/Procedurals/proceduralTexture").ProceduralTexture} pt
+     * @param {boolean} [identity] force snow-neutral 1s (warm-up clear)
+     */
+    _pushEnvRates(pt, identity) {
+        if (identity) {
+            pt.setFloat("slumpMul", 1);
+            pt.setFloat("bermDiffMul", 1);
+            pt.setFloat("depDiffMul", 1);
+            pt.setFloat("depDecayMul", 1);
+            pt.setFloat("bermDecayMul", 1);
+            pt.setFloat("windInfillMul", 1);
+            return;
+        }
+        const e = getLerped();
+        pt.setFloat("slumpMul", e.slumpMul);
+        pt.setFloat("bermDiffMul", e.bermDiffMul);
+        pt.setFloat("depDiffMul", e.depDiffMul);
+        pt.setFloat("depDecayMul", e.depDecayMul);
+        pt.setFloat("bermDecayMul", e.bermDecayMul);
+        pt.setFloat("windInfillMul", e.windInfillMul);
+    }
+
     _uploadBrushes() {
         // Only the live brushes carry meaning; the shader reads exactly
         // `brushCount` of them, so the tail can stay stale. But radius 0 is the
         // shader's own skip test, so clearing it is a cheap safety net.
         const d = this._brushData;
-        const stride = MAX_BRUSHES * 4;
         for (let i = this._brushCount; i < MAX_BRUSHES; i++) {
             d[i * 4 + 2] = 0;
         }
@@ -279,6 +303,7 @@ export class DeformationField {
             pt.setFloat("maxDepth", 1);
             pt.setFloat("maxBerm", 1);
             pt.setFloat("windAngle", 0);
+            this._pushEnvRates(pt, true);
             pt.render();
             this.texture = pt;
             this._write = 1 - this._write;

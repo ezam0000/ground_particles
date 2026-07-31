@@ -1,0 +1,32 @@
+[
+  {
+    "id": "columbia-university",
+    "kind": "school",
+    "title": "Columbia University",
+    "period": "2020",
+    "description": "MS, Computer Engineering. Completed 19 credits before leaving to join Apple.",
+    "link": null,
+    "image": "/assets/portfolio/org/columbia-university.jpeg",
+    "isNew": false
+  },
+  {
+    "id": "baruch-college",
+    "kind": "school",
+    "title": "Baruch College",
+    "period": "2017 - 2019",
+    "description": "BS, Finance. Zicklin School of Business, City University of New York.",
+    "link": null,
+    "image": "/assets/portfolio/org/baruch-college.jpeg",
+    "isNew": false
+  },
+  {
+    "id": "northeastern-university",
+    "kind": "school",
+    "title": "Northeastern University",
+    "period": "2015 - 2017",
+    "description": "BS, Business Administration and Management. Transferred to Baruch College.",
+    "link": null,
+    "image": "/assets/portfolio/org/northeastern-university.jpeg",
+    "isNew": false
+  }
+]

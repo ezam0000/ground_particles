@@ -17,16 +17,19 @@
 import { ShaderMaterial } from "@babylonjs/core/Materials/shaderMaterial";
 import { ShaderLanguage } from "@babylonjs/core/Materials/shaderLanguage";
 import { RawTexture } from "@babylonjs/core/Materials/Textures/rawTexture";
+import { Texture } from "@babylonjs/core/Materials/Textures/texture";
 import { Constants } from "@babylonjs/core/Engines/constants";
 import { Vector2, Vector3, Vector4, Color3 } from "@babylonjs/core/Maths/math";
 
 import { Figure, BONE_COUNT } from "./figure.js";
 import { makePanels, ClothSolver } from "./cloth.js";
-import { buildBody, buildFur, buildClothMesh } from "./build.js";
+import { buildBody, buildFur, buildClothMesh, M_ROBE } from "./build.js";
 import { S } from "../core/settings.js";
 import { whenReady, bindMatrixArray } from "../core/gpuUtil.js";
 import { CASCADE_COUNT } from "../render/shadows.js";
 import { SPELL_LIGHT_UNIFORMS } from "../spells/spellLights.js";
+
+const SHIRT_ALBEDO_URL = "/assets/character/shirt_albedo.png";
 
 /** Transform texture geometry. Width covers the widest of bones or panel cols. */
 const TEX_W = 48;
@@ -38,53 +41,39 @@ const CLOTH_ROW0 = 4;
 const CHAR_CASCADES = 2;
 
 /**
- * Material palette. Eight slots, uploaded as two vec4 arrays so every value is
- * live-tunable and nothing is baked into the shader: deep indigo wool, a
- * lighter blue-grey mantle, a pale under-layer at the collar, dark leather.
+ * Material palette. Eight slots, uploaded as two vec4 arrays.
  *
- * Two properties of these numbers are deliberate and were measured off the
- * render rather than picked as colours.
- *
- * They are *very* saturated. At thirteen degrees the sun has lost most of its
- * blue — the direct beam here is roughly 17:13:6 — so a merely blue-ish albedo
- * comes back out of the multiply as warm grey. The blue has to be about four
- * times the red in the albedo just to survive to two-to-one in the lit areas.
- *
- * They are *very* dark. AgX compresses hard, so an eighth of the snow's albedo
- * is only about three stops down and lands near mid grey on screen. Anything
- * lighter stops reading as a silhouette against the field, which is the one
- * thing the figure has to do at fifteen metres.
+ * Hawaiian shirt + black pants: slot 0 is a dark warm base under the floral
+ * map; pants are near-black; sneakers are off-white. Saturation still has to
+ * survive the low warm sun — but the shirt print carries most of the colour.
  */
 const PALETTE = [
     // rgb, roughness
-    [0.030, 0.048, 0.125, 0.80], // 0 robe, deep indigo
-    [0.075, 0.105, 0.185, 0.74], // 1 mantle, blue-grey
-    [0.230, 0.225, 0.205, 0.82], // 2 collar lining, warm pale
-    [0.048, 0.033, 0.024, 0.60], // 3 leather
-    [0.135, 0.095, 0.072, 0.85], // 4 skin, deep in shade
-    [0.120, 0.195, 0.310, 0.70], // 5 trim / scarf, pale blue
-    [0.700, 0.720, 0.760, 0.85], // 6 fur (unused by the fabric shader)
-    [0.100, 0.100, 0.100, 0.80], // 7 spare
+    [0.04, 0.035, 0.045, 0.72],  // 0 shirt base (under floral)
+    [0.55, 0.38, 0.18, 0.32],    // 1 bronze helm
+    [0.180, 0.160, 0.140, 0.82], // 2 spare lining
+    [0.92, 0.92, 0.90, 0.48],    // 3 sneakers — bright white for AgX/snow
+    [0.135, 0.095, 0.072, 0.85], // 4 skin
+    [0.050, 0.034, 0.024, 0.60], // 5 hair, near-black brown
+    [0.700, 0.720, 0.760, 0.85], // 6 fur unused
+    [0.012, 0.012, 0.014, 0.90], // 7 pants, matte black
 ];
 
 /**
  * (sheen, anisotropy, transmission, weave depth) per slot.
  *
- * Transmission is the number to be careful with. Sunlight through a *blue*
- * robe, multiplied by a *warm* sun, comes back grey — so a generous
- * transmission term does not make the garment glow, it desaturates it to the
- * point where the albedo stops mattering. Heavy wool is close to opaque; only
- * the thin under-layer gets a real value.
+ * Shirt weave depth is low so the floral albedo reads; pants stay matte.
+ * Hair runs a strong anisotropic sheen — that is what separates it from skin.
  */
 const PARAMS = [
-    [0.22, 0.55, 0.05, 1.00],
-    [0.28, 0.45, 0.07, 0.90],
-    [0.35, 0.30, 0.22, 1.10],
-    [0.06, 0.20, 0.01, 0.35],
+    [0.12, 0.15, 0.04, 0.08],
+    [0.55, 0.10, 0.00, 0.00], // bronze — metallic sheen, no weave
+    [0.25, 0.20, 0.10, 0.50],
+    [0.08, 0.02, 0.01, 0.05],
     [0.05, 0.00, 0.08, 0.00],
-    [0.25, 0.60, 0.12, 1.00],
+    [0.50, 0.65, 0.02, 0.00],
     [1.00, 0.00, 0.90, 0.00],
-    [0.20, 0.00, 0.00, 0.50],
+    [0.06, 0.25, 0.01, 0.35],
 ];
 
 // ------------------------------------------------------- module-scope scratch
@@ -110,6 +99,10 @@ export class Character {
         this.figure = new Figure(terrain);
         this.panels = makePanels();
         this.solver = new ClothSolver(this.panels, terrain);
+
+        // Shirt panel weave scale — used by the fragment shader to normalize
+        // the floral print UV back to 0..1 across the garment.
+        this._shirtWeave = new Vector2(this.panels[0].weaveU, this.panels[0].weaveV);
 
         // ---- transform texture -------------------------------------------
         this._texData = new Float32Array(TEX_W * TEX_H * 4);
@@ -150,6 +143,7 @@ export class Character {
         this.bodyMesh = buildBody(scene);
         this.clothMesh = buildClothMesh(scene, this.panels);
         this.furMesh = buildFur(scene);
+        this.furMesh.setEnabled(false);
 
         this.bodyMat = this._makeSurfaceMaterial("charBody", "char", "char", false);
         this.clothMat = this._makeSurfaceMaterial("charCloth", "cloth", "char", true);
@@ -158,6 +152,18 @@ export class Character {
         this.bodyMesh.material = this.bodyMat;
         this.clothMesh.material = this.clothMat;
         this.furMesh.material = this.furMat;
+
+        // 1×1 dark placeholder until /assets/character/shirt_albedo.png loads.
+        this._shirtFallback = RawTexture.CreateRGBATexture(
+            new Uint8Array([28, 20, 14, 255]), 1, 1, scene,
+            false, false,
+            Constants.TEXTURE_NEAREST_SAMPLINGMODE,
+            Constants.TEXTURETYPE_UNSIGNED_BYTE
+        );
+        this.shirtTex = this._shirtFallback;
+        this.bodyMat.setTexture("shirtTex", this.shirtTex);
+        this.clothMat.setTexture("shirtTex", this.shirtTex);
+        this._loadShirtAlbedo();
 
         for (const m of [this.bodyMesh, this.clothMesh, this.furMesh]) {
             m.renderingGroupId = 1;
@@ -203,7 +209,7 @@ export class Character {
             "matAlbedo", "matParams",
             "fogDensity", "fogHeightFalloff", "fogStart", "aerialStrength",
             "ambientIntensity", "sssStrength", "weaveDensity",
-            "screenSize",
+            "screenSize", "shirtSlot", "shirtWeave",
             ...SPELL_LIGHT_UNIFORMS,
         ];
         const attributes = isCloth
@@ -217,7 +223,8 @@ export class Character {
                 attributes,
                 uniforms,
                 samplers: [
-                    "charTex", "skyLUT", "cascade0", "cascade1", "cascade2",
+                    "charTex", "shirtTex", "skyLUT",
+                    "cascade0", "cascade1", "cascade2",
                 ],
                 shaderLanguage: ShaderLanguage.WGSL,
             }
@@ -227,6 +234,8 @@ export class Character {
         // rather than trusting winding — see the note there.
         mat.backFaceCulling = false;
         mat.setTexture("charTex", this.charTex);
+        mat.setFloat("shirtSlot", M_ROBE);
+        mat.setVector2("shirtWeave", this._shirtWeave);
         mat.setTexture("skyLUT", this.sky.lut);
         for (let i = 0; i < CASCADE_COUNT; i++) {
             mat.setTexture("cascade" + i, this.shadows.maps[i]);
@@ -325,7 +334,31 @@ export class Character {
         this._visible = !!v;
         this.bodyMesh.isVisible = this._visible;
         this.clothMesh.isVisible = this._visible;
-        this.furMesh.isVisible = this._visible;
+        // Fur stays off for the Hawaiian look.
+        this.furMesh.isVisible = false;
+    }
+
+    /** Try to load the authored floral shirt map; keep the dark fallback on 404. */
+    _loadShirtAlbedo() {
+        const tex = new Texture(
+            SHIRT_ALBEDO_URL,
+            this.scene,
+            false,
+            false,
+            Constants.TEXTURE_TRILINEAR_SAMPLINGMODE,
+            () => {
+                tex.wrapU = Constants.TEXTURE_WRAP_ADDRESSMODE;
+                tex.wrapV = Constants.TEXTURE_WRAP_ADDRESSMODE;
+                tex.gammaSpace = true;
+                this.shirtTex = tex;
+                this.bodyMat.setTexture("shirtTex", tex);
+                this.clothMat.setTexture("shirtTex", tex);
+            },
+            () => {
+                console.warn("[character] shirt albedo missing:", SHIRT_ALBEDO_URL);
+                tex.dispose();
+            }
+        );
     }
 
     /**
@@ -516,5 +549,9 @@ export class Character {
         this.clothMat.dispose();
         this.furMat.dispose();
         this.charTex.dispose();
+        if (this.shirtTex && this.shirtTex !== this._shirtFallback) {
+            this.shirtTex.dispose();
+        }
+        this._shirtFallback?.dispose();
     }
 }

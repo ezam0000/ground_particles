@@ -10,7 +10,7 @@
  * itself pushes the arm up, which buys a rig that never pops through a drift.
  */
 
-import { Vector3, Matrix, Quaternion } from "@babylonjs/core/Maths/math.vector";
+import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { Scalar } from "@babylonjs/core/Maths/math.scalar";
 import { UniversalCamera } from "@babylonjs/core/Cameras/universalCamera";
 import { input } from "./input.js";
@@ -31,12 +31,17 @@ const PITCH_MAX = 1.05; // looking down
 const DIST_MIN = 2.6;
 const DIST_MAX = 11.0;
 
+const INSPECT_PITCH_MIN = -0.35;
+const INSPECT_PITCH_MAX = 0.72;
+const INSPECT_DIST_MIN = 1.7;
+const INSPECT_DIST_MAX = 5.2;
+
 export class CameraRig {
     /**
      * @param {import("@babylonjs/core/scene").Scene} scene
      * @param {HTMLCanvasElement} canvas
      */
-    constructor(scene, canvas) {
+    constructor(scene, _canvas) {
         const cam = new UniversalCamera("cam", new Vector3(0, 3, -6), scene);
         cam.minZ = 0.12;
         cam.maxZ = 4200;
@@ -93,6 +98,37 @@ export class CameraRig {
         this.groundLift = 0;
 
         this._first = true;
+
+        /** Pillar inspect: orbit a fixed world point instead of the character. */
+        this.inspecting = false;
+        this.inspectPivot = new Vector3();
+        this._preInspectDist = 6.2;
+    }
+
+    /**
+     * Frame a world point (pillar mid-height). Mouse orbits; wheel zooms.
+     * @param {number} x @param {number} y @param {number} z
+     */
+    beginInspect(x, y, z) {
+        this.inspecting = true;
+        this.inspectPivot.set(x, y, z);
+        this._preInspectDist = this.distanceTarget;
+        // Aim at the pillar from the current eye so the transition reads clean.
+        const dx = x - this.camera.position.x;
+        const dy = y - this.camera.position.y;
+        const dz = z - this.camera.position.z;
+        const flat = Math.hypot(dx, dz) || 1;
+        this.yaw = Math.atan2(dx, dz);
+        this.pitch = Scalar.Clamp(-Math.atan2(dy, flat), INSPECT_PITCH_MIN, INSPECT_PITCH_MAX);
+        this.distanceTarget = 3.1;
+        this.pivotVel.set(0, 0, 0);
+    }
+
+    endInspect() {
+        if (!this.inspecting) return;
+        this.inspecting = false;
+        this.distanceTarget = Scalar.Clamp(this._preInspectDist, DIST_MIN, DIST_MAX);
+        this.pivotVel.set(0, 0, 0);
     }
 
     /** @param {number} amount 0..1 */
@@ -108,43 +144,56 @@ export class CameraRig {
      * @param {number} speed01 normalised speed for FOV widening
      */
     update(dt, targetPos, targetVel, lean, speed01) {
+        const inspecting = this.inspecting;
+
         // ------------------------------------------------------------- look
         this.yaw += input.lookX;
-        this.pitch = Scalar.Clamp(this.pitch + input.lookY, PITCH_MIN, PITCH_MAX);
+        const pMin = inspecting ? INSPECT_PITCH_MIN : PITCH_MIN;
+        const pMax = inspecting ? INSPECT_PITCH_MAX : PITCH_MAX;
+        this.pitch = Scalar.Clamp(this.pitch + input.lookY, pMin, pMax);
 
         // ------------------------------------------------------------- zoom
+        const dMin = inspecting ? INSPECT_DIST_MIN : DIST_MIN;
+        const dMax = inspecting ? INSPECT_DIST_MAX : DIST_MAX;
         this.distanceTarget = Scalar.Clamp(
             this.distanceTarget + input.zoomDelta * (this.distanceTarget * 0.35),
-            DIST_MIN,
-            DIST_MAX
+            dMin,
+            dMax
         );
         // Eased zoom — expDamp is framerate-independent.
-        this.distance = expDamp(this.distance, this.distanceTarget, 9, dt);
+        this.distance = expDamp(this.distance, this.distanceTarget, inspecting ? 12 : 9, dt);
 
         // ------------------------------------------------------------ pivot
-        _pivot.copyFrom(targetPos);
-        _pivot.y += this.pivotHeight;
+        if (inspecting) {
+            _pivot.copyFrom(this.inspectPivot);
+        } else {
+            _pivot.copyFrom(targetPos);
+            _pivot.y += this.pivotHeight;
 
-        // Lead the camera slightly into the direction of travel so fast motion
-        // shows more of what's ahead.
-        const lead = Math.min(1, speed01) * 1.35;
-        _pivot.x += targetVel.x * lead * 0.09;
-        _pivot.z += targetVel.z * lead * 0.09;
+            // Lead the camera slightly into the direction of travel so fast motion
+            // shows more of what's ahead.
+            const lead = Math.min(1, speed01) * 1.35;
+            _pivot.x += targetVel.x * lead * 0.09;
+            _pivot.z += targetVel.z * lead * 0.09;
+        }
 
         if (this._first) {
             this.pivot.copyFrom(_pivot);
             this._first = false;
         } else {
             // Softer spring under acceleration = the arm stretches, then recovers.
-            springDamp(this.pivot, this.pivotVel, _pivot, 7.5, 1.0, dt);
+            // Inspect snaps the pivot onto the pillar a bit faster.
+            springDamp(this.pivot, this.pivotVel, _pivot, inspecting ? 14 : 7.5, 1.0, dt);
         }
 
         // -------------------------------------------------------------- fov
-        const fovWant = this.baseFov * (1 + speed01 * 0.19);
+        const fovWant = inspecting
+            ? this.baseFov * 0.88
+            : this.baseFov * (1 + speed01 * 0.19);
         this.fov = expDamp(this.fov, fovWant, 3.2, dt);
 
         // ------------------------------------------------------------- bank
-        this.rollTarget = -lean * 0.085;
+        this.rollTarget = inspecting ? 0 : -lean * 0.085;
         this.roll = expDamp(this.roll, this.rollTarget, 5.0, dt);
 
         // ------------------------------------------------------------ shake
@@ -169,8 +218,10 @@ export class CameraRig {
 
         _desired.copyFrom(this.pivot);
         _desired.addInPlace(_tmp.copyFrom(_fwd).scaleInPlace(-this.distance));
-        _desired.addInPlace(_tmp.copyFrom(_right).scaleInPlace(this.shoulder));
-        _desired.addInPlace(_tmp.copyFrom(_up).scaleInPlace(0.22));
+        if (!inspecting) {
+            _desired.addInPlace(_tmp.copyFrom(_right).scaleInPlace(this.shoulder));
+            _desired.addInPlace(_tmp.copyFrom(_up).scaleInPlace(0.22));
+        }
 
         // ---- keep the arm out of the snow --------------------------------
         // The lift rises quickly and relaxes slowly: snapping down the instant a

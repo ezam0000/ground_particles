@@ -36,7 +36,7 @@ import {
     B_UPPER_R, B_FORE_R, B_HAND_R, B_NECK, B_SHIN_L, B_SHIN_R,
     B_THIGH_L, B_THIGH_R, B_FOOT_L, B_FOOT_R,
 } from "./figure.js";
-import { M_ROBE, M_MANTLE } from "./build.js";
+import { M_ROBE } from "./build.js";
 
 /** Which body capsules a panel is allowed to collide against. */
 const C_TORSO = 1;
@@ -110,80 +110,48 @@ function dist3(a, ia, b, ib) {
 //  Garment shapes
 // -----------------------------------------------------------------------------
 
-/** Piecewise-linear lookup over a table of `[t, a, b]` control points. */
-function curve(table, t) {
-    let i = 0;
-    while (i < table.length - 2 && t > table[i + 1][0]) i++;
-    const A = table[i], Bb = table[i + 1];
-    const s = Bb[0] > A[0] ? (t - A[0]) / (Bb[0] - A[0]) : 0;
-    const k = Math.min(1, Math.max(0, s));
-    return [A[1] + (Bb[1] - A[1]) * k, A[2] + (Bb[2] - A[2]) * k];
-}
-
 /**
- * The robe: a long tube from the waist, flaring to a hem that is cut high at
- * the front so the boots read, and trails behind. The asymmetry is what makes
- * the silhouette move when the figure turns.
+ * Hawaiian shirt: a short tube from the chest to just below the waist. Flowy
+ * but not floor-length — hem clears the hips so the black trousers read.
  */
-function makeRobe() {
+function makeShirt() {
     const p = new ClothPanel({
-        // Thirty-six columns is set by the fold count, not by smoothness: nine
-        // pleats need four samples each to survive the grid at all, and the
-        // Catmull-Rom reconstruction turns four samples per fold into a clean
-        // wave. Twenty columns aliased them into a wobble.
-        name: "robe", cols: 36, rows: 12, matId: M_ROBE,
-        renderCols: 72, renderRows: 32,
-        // Metres of surface, so the shader's weave and slub scales are physical.
-        weaveU: 1.75, weaveV: 1.05,
-        aoTop: 0.55, aoBottom: 0.42,
-        collide: C_TORSO | C_LEGS, groundRows: 2,
+        name: "shirt", cols: 36, rows: 10, matId: M_ROBE,
+        renderCols: 72, renderRows: 28,
+        // Large floral like the reference — one clean repeat around the torso.
+        weaveU: 1.0, weaveV: 1.0,
+        aoTop: 0.92, aoBottom: 0.82,
+        collide: C_TORSO, groundRows: 0,
     });
 
-    const RATE = [Infinity, 30, 10, 4, 1.6, 0.9, 0.55, 0.4, 0.35, 0.3, 0.3, 0.3];
+    const RATE = [Infinity, 45, 20, 9, 4.0, 2.0, 1.1, 0.7, 0.5, 0.4];
 
     for (let j = 0; j < p.rows; j++) {
         const v = j / (p.rows - 1);
         for (let i = 0; i < p.cols; i++) {
             const a = (i / p.cols) * Math.PI * 2;
             const sa = Math.sin(a), ca = Math.cos(a);
-            // The flare accelerates downward, and the back flares furthest —
-            // that extra fabric is what becomes the train.
-            const f = Math.pow(v, 1.25);
+            const f = Math.pow(v, 1.1);
 
-            // Pleats. A garment cut as a smooth cone stays a smooth cone: the
-            // solver has nothing to break the symmetry with, and a robe with no
-            // vertical folds reads as a traffic cone no matter how good the
-            // shading is. Putting the folds in the *rest shape* means the
-            // constraints preserve them, they deepen toward the hem where the
-            // fabric is loose, and they travel with the garment rather than
-            // sliding across it the way a normal map would.
-            //
-            // Three incommensurate frequencies, so no two folds are alike and
-            // the pattern never repeats around the tube.
             const fold =
-                0.118 * Math.sin(a * 7 + 0.6) +
-                0.055 * Math.sin(a * 12 + 2.1) +
-                0.026 * Math.sin(a * 19 + 4.4);
+                0.035 * Math.sin(a * 7 + 0.6) +
+                0.018 * Math.sin(a * 12 + 2.1) +
+                0.008 * Math.sin(a * 19 + 4.4);
             const pleat = 1 + f * fold;
 
-            // ca = +1 at the front, -1 at the back. The hem hangs *lowest* at
-            // the crest of a fold, where there is most fabric to hang — in
-            // phase with the pleat it produced a row of hard spikes instead.
-            //
-            // Cut high at the front and long at the back. Ankle length all the
-            // way round hides the boots, and with the boots hidden the entire
-            // foot-planting solve is invisible.
-            const hemY = 0.300 + 0.200 * ca - 0.048 * Math.sin(a * 7 + 0.6);
-            const y = 0.990 + (hemY - 0.990) * v;
+            // Open collar line → hip hem (camp-shirt length, trousers readable).
+            const topY = 1.365;
+            const hemY = 0.985 + 0.040 * ca;
+            const y = topY + (hemY - topY) * v;
 
-            const rx = (0.158 + (0.345 - 0.158) * f) * pleat;
-            const rz = (0.128 + (0.318 - 0.128) * f * (1 - 0.12 * ca)) * pleat;
+            const rx = (0.182 + (0.218 - 0.182) * f) * pleat;
+            const rz = (0.148 + (0.180 - 0.148) * f) * pleat;
 
             const o = (j * p.cols + i) * 3;
             p.bindPos[o] = rx * sa;
             p.bindPos[o + 1] = y;
-            p.bindPos[o + 2] = rz * ca - 0.010 * v;
-            p.bone[j * p.cols + i] = B_ROOT;
+            p.bindPos[o + 2] = rz * ca - 0.008 * v;
+            p.bone[j * p.cols + i] = v < 0.45 ? B_CHEST : B_ROOT;
             p.pinRate[j * p.cols + i] = RATE[j];
         }
     }
@@ -192,123 +160,48 @@ function makeRobe() {
 }
 
 /**
- * The over-mantle: a short cape that clears the shoulders and falls to the
- * small of the back. Its job is to break up the vertical line of the robe and
- * to catch the light on the shoulders, which is the read that says "layered"
- * from fifteen metres.
- */
-function makeMantle() {
-    const p = new ClothPanel({
-        name: "mantle", cols: 28, rows: 7, matId: M_MANTLE,
-        renderCols: 64, renderRows: 22,
-        weaveU: 1.35, weaveV: 0.72,
-        aoTop: 0.85, aoBottom: 0.6,
-        collide: C_TORSO | C_ARM_L | C_ARM_R,
-    });
-
-    const RATE = [Infinity, 40, 12, 4, 1.5, 0.8, 0.45];
-    // The collar has to clear the torso it sits on: start it inside the
-    // shoulders (0.176 across) and the top of the mantle only emerges at the
-    // shoulder line, which reads as a flat plate bolted to the chest.
-    const RAD = [
-        [0.00, 0.176, 0.148],
-        [0.20, 0.222, 0.176],
-        [0.55, 0.235, 0.196],
-        [1.00, 0.246, 0.214],
-    ];
-    // Stops around the elbow, so the sleeves and their fur cuffs stay visible
-    // below it. A mantle long enough to cover the forearms swallows the whole
-    // silhouette into one dark mass.
-    const YT = [
-        [0.00, 1.442, 0],
-        [0.20, 1.352, 0],
-        [0.55, 1.220, 0],
-        [1.00, 0.000, 0], // filled per column below
-    ];
-
-    for (let j = 0; j < p.rows; j++) {
-        const v = j / (p.rows - 1);
-        const [rx, rz] = curve(RAD, v);
-        for (let i = 0; i < p.cols; i++) {
-            const a = (i / p.cols) * Math.PI * 2;
-            const sa = Math.sin(a), ca = Math.cos(a);
-            // Front hangs shorter than the back, and the edge scallops with the
-            // folds rather than cutting a clean arc.
-            YT[3][1] = 1.045 + 0.115 * ca + 0.035 * Math.sin(a * 7 + 1.4);
-            const y = curve(YT, v)[0];
-            const pleat = 1 + v * (0.062 * Math.sin(a * 7 + 1.4) + 0.026 * Math.sin(a * 11 + 3.0));
-
-            const o = (j * p.cols + i) * 3;
-            p.bindPos[o] = rx * sa * pleat;
-            p.bindPos[o + 1] = y;
-            p.bindPos[o + 2] = rz * ca * pleat - 0.012;
-            p.bone[j * p.cols + i] = B_CHEST;
-            p.pinRate[j * p.cols + i] = RATE[j];
-        }
-    }
-    p.finalise();
-    return p;
-}
-
-/**
- * A sleeve. Pinned tightly along the arm and genuinely loose only past the
- * wrist, where the cuff drapes. A fully free sleeve looks wonderful for about
- * four seconds and then slides off the elbow.
+ * Short sleeve: upper arm only, slight cuff flare just past the elbow start.
  */
 function makeSleeve(side) {
     const s = side === 0 ? -1 : 1;
     const p = new ClothPanel({
-        name: "sleeve" + side, cols: 10, rows: 8, matId: M_ROBE,
-        renderCols: 26, renderRows: 20,
-        weaveU: 0.46, weaveV: 0.66,
-        aoTop: 0.6, aoBottom: 0.5,
+        name: "sleeve" + side, cols: 10, rows: 6, matId: M_ROBE,
+        renderCols: 26, renderRows: 16,
+        weaveU: 0.55, weaveV: 0.55,
+        aoTop: 0.90, aoBottom: 0.82,
         collide: side === 0 ? C_ARM_L : C_ARM_R,
     });
 
     const UP = [s * 0.185, 1.400, 0.000];
     const EL = [s * 0.230, 1.123, 0.000];
-    const WR = [s * 0.243, 0.866, 0.016];
 
-    // Beyond the wrist, continuing the forearm's direction.
-    let dx = WR[0] - EL[0], dy = WR[1] - EL[1], dz = WR[2] - EL[2];
+    let dx = EL[0] - UP[0], dy = EL[1] - UP[1], dz = EL[2] - UP[2];
     const dl = Math.hypot(dx, dy, dz);
     dx /= dl; dy /= dl; dz /= dl;
 
-    // (segment, t, radius) per row. Segment 0 = upper arm, 1 = forearm,
-    // 2 = past the wrist.
+    // Rows along the upper arm, ending just past the elbow with a soft cuff.
     const ROWS = [
-        [0, 0.00, 0.084], [0, 0.45, 0.076], [0, 1.00, 0.072],
-        [1, 0.40, 0.068], [1, 0.75, 0.064], [1, 1.00, 0.061],
-        [2, 0.045, 0.072], [2, 0.125, 0.098],
+        [0.00, 0.092], [0.28, 0.084], [0.55, 0.078],
+        [0.82, 0.074], [1.00, 0.080], [1.18, 0.100],
     ];
     const BONE = [
         B_UPPER_L, B_UPPER_L, B_UPPER_L,
-        B_FORE_L, B_FORE_L, B_FORE_L, B_FORE_L, B_HAND_L,
+        B_UPPER_L, B_FORE_L, B_FORE_L,
     ];
     const BONE_R = [
         B_UPPER_R, B_UPPER_R, B_UPPER_R,
-        B_FORE_R, B_FORE_R, B_FORE_R, B_FORE_R, B_HAND_R,
+        B_UPPER_R, B_FORE_R, B_FORE_R,
     ];
-    const RATE = [Infinity, 50, 26, 40, 18, 9, 5, 1.2];
+    const RATE = [Infinity, 50, 28, 16, 7, 2.2];
 
     for (let j = 0; j < p.rows; j++) {
-        const [seg, t, r] = ROWS[j];
-        let cx, cy, cz;
-        if (seg === 0) {
-            cx = UP[0] + (EL[0] - UP[0]) * t;
-            cy = UP[1] + (EL[1] - UP[1]) * t;
-            cz = UP[2] + (EL[2] - UP[2]) * t;
-        } else if (seg === 1) {
-            cx = EL[0] + (WR[0] - EL[0]) * t;
-            cy = EL[1] + (WR[1] - EL[1]) * t;
-            cz = EL[2] + (WR[2] - EL[2]) * t;
-        } else {
-            cx = WR[0] + dx * t; cy = WR[1] + dy * t; cz = WR[2] + dz * t;
-        }
+        const [t, r] = ROWS[j];
+        const cx = UP[0] + dx * (t * dl);
+        const cy = UP[1] + dy * (t * dl);
+        const cz = UP[2] + dz * (t * dl);
         for (let i = 0; i < p.cols; i++) {
             const a = (i / p.cols) * Math.PI * 2;
             const o = (j * p.cols + i) * 3;
-            // The arm is near-vertical in the bind pose, so the ring lies in XZ.
             p.bindPos[o] = cx + Math.sin(a) * r;
             p.bindPos[o + 1] = cy;
             p.bindPos[o + 2] = cz + Math.cos(a) * r;
@@ -321,7 +214,7 @@ function makeSleeve(side) {
 }
 
 export function makePanels() {
-    return [makeRobe(), makeMantle(), makeSleeve(0), makeSleeve(1)];
+    return [makeShirt(), makeSleeve(0), makeSleeve(1)];
 }
 
 // -----------------------------------------------------------------------------
@@ -334,10 +227,10 @@ const ITERATIONS = 6;
 /** Capsule table: [boneA, boneB, radius, mask]. Rebuilt from joints each frame. */
 const CAPSULES = [
     [B_ROOT, B_NECK, 0.175, C_TORSO],
-    [B_THIGH_L, B_SHIN_L, 0.125, C_LEGS],
-    [B_SHIN_L, B_FOOT_L, 0.098, C_LEGS],
-    [B_THIGH_R, B_SHIN_R, 0.125, C_LEGS],
-    [B_SHIN_R, B_FOOT_R, 0.098, C_LEGS],
+    [B_THIGH_L, B_SHIN_L, 0.148, C_LEGS],
+    [B_SHIN_L, B_FOOT_L, 0.118, C_LEGS],
+    [B_THIGH_R, B_SHIN_R, 0.148, C_LEGS],
+    [B_SHIN_R, B_FOOT_R, 0.118, C_LEGS],
     [B_UPPER_L, B_FORE_L, 0.078, C_ARM_L],
     [B_FORE_L, B_HAND_L, 0.068, C_ARM_L],
     [B_UPPER_R, B_FORE_R, 0.078, C_ARM_R],
@@ -523,7 +416,7 @@ export class ClothSolver {
                 let t = ((pos[o] - ax) * ex + (pos[o + 1] - ay) * ey + (pos[o + 2] - az) * ez) / elen2;
                 t = t < 0 ? 0 : t > 1 ? 1 : t;
                 const cx = ax + ex * t, cy = ay + ey * t, cz = az + ez * t;
-                let dx = pos[o] - cx, dy = pos[o + 1] - cy, dz = pos[o + 2] - cz;
+                const dx = pos[o] - cx, dy = pos[o + 1] - cy, dz = pos[o + 2] - cz;
                 const d = Math.hypot(dx, dy, dz);
                 if (d >= r || d < 1e-6) continue;
                 const push = (r - d) / d;

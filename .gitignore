@@ -29,3 +29,23 @@ Thumbs.db
 !public/assets/environments/**/*.png
 !public/assets/environments/**/*.jpg
 !public/assets/environments/**/*.webp
+
+# authored character fabric maps (see public/assets/character/)
+!public/assets/character/**/*.png
+!public/assets/character/**/*.jpg
+!public/assets/character/**/*.webp
+
+# synced portfolio stills + org logos
+!public/assets/portfolio/**/*.png
+!public/assets/portfolio/**/*.jpg
+!public/assets/portfolio/**/*.jpeg
+!public/assets/portfolio/**/*.gif
+!public/assets/portfolio/**/*.webp
+!public/assets/portfolio/**/*.avif
+
+# Odyssey set-dressing albedo tiles + authored GLB pillars
+!public/assets/odyssey/**/*.png
+!public/assets/odyssey/**/*.jpg
+!public/assets/odyssey/**/*.webp
+!public/assets/odyssey/**/*.glb
+!public/assets/odyssey/**/*.gltf

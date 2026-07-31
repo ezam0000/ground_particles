@@ -116,12 +116,6 @@ export class PostChain {
         this.sky = sky;
         this.time = 0;
 
-        /**
-         * 0..1, written each frame by the surf state. Drives the radial smear
-         * and the spindrift strands in the display transform.
-         */
-        this.speedStreak = 0;
-
         /** Eased focal distance, metres. Tracks the spring arm. */
         this.focusDist = 6.2;
 
@@ -168,7 +162,7 @@ export class PostChain {
             Constants.TEXTURETYPE_HALF_FLOAT);
         this.composite = this._pass("snowTonemap", 1.0,
             ["exposure", "contrast", "mode", "grainAmount", "time", "vignette",
-             "speedStreak", "bloomAmount", "shaftAmount"],
+             "bloomAmount", "shaftAmount"],
             ["bloomNear", "bloomFar", "shaftsTex"], Constants.TEXTURETYPE_HALF_FLOAT);
         this.sharpen = this._pass("snowSharpen", 1.0, ["invRes", "amount"], [],
             // The last stage before the swapchain, and the only one working on
@@ -329,10 +323,6 @@ export class PostChain {
             e.setFloat("grainAmount", S.grain ? S.grainStrength : 0);
             e.setFloat("time", this.time);
             e.setFloat("vignette", 0.22);
-            e.setFloat(
-                "speedStreak",
-                S.windStreaks ? this.speedStreak * S.streakStrength : 0
-            );
             e.setFloat("bloomAmount", S.bloom ? S.bloomStrength : 0);
             e.setFloat("shaftAmount", S.showLightShafts ? 1 : 0);
             e.setTextureFromPostProcessOutput("bloomNear", this.bloomA);
@@ -355,12 +345,10 @@ export class PostChain {
      * their matrix from the scene at render time.
      *
      * @param {number} dt
-     * @param {number} [streak] 0..1 speed-streak amount for this frame
      * @param {number} [focus] metres to the subject, for depth of field
      */
-    update(dt, streak, focus) {
+    update(dt, focus) {
         this.time += dt;
-        if (streak !== undefined) this.speedStreak = streak;
         if (focus !== undefined) {
             // Eased: a focal plane that snaps when the spring arm re-lengthens is
             // the one thing a restrained depth of field can still make obvious.

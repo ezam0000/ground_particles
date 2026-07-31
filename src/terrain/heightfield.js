@@ -20,7 +20,7 @@
 import { ProceduralTexture } from "@babylonjs/core/Materials/Textures/Procedurals/proceduralTexture";
 import { Constants } from "@babylonjs/core/Engines/constants";
 import { ShaderLanguage } from "@babylonjs/core/Materials/shaderLanguage";
-import { Vector2, Vector3 } from "@babylonjs/core/Maths/math.vector";
+import { Vector2 } from "@babylonjs/core/Maths/math.vector";
 import { S } from "../core/settings.js";
 import { bakeOnce } from "../core/gpuUtil.js";
 

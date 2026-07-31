@@ -2,10 +2,9 @@
  * Raw input state. Everything lands in one mutable struct that systems poll —
  * no events fired into game code, no per-frame allocation.
  *
- * Mouse look uses pointer lock, which frees the right button for snow-surf.
+ * Mouse look uses pointer lock, so there is no cursor: portfolio cards open on
+ * approach and their links fire on a keypress, never on a click.
  */
-
-import { S, set } from "./settings.js";
 
 export const input = {
     // Movement axes, camera-relative, already normalised to a unit disc.
@@ -20,13 +19,15 @@ export const input = {
     // Zoom, consumed by the camera rig.
     zoomDelta: 0,
 
-    surf: false, // RMB held
     sprint: false, // shift
-
-    /** @type {number} 0 = none, else 1..5 — set on keydown, cleared each frame */
-    spellPressed: 0,
-    /** @type {boolean} spell 2 (Ribbon) is a held cast */
-    spellHeld2: false,
+    /** Set for one frame on Space keydown; cleared by `endFrame()`. */
+    jumpPressed: false,
+    /** Set for one frame on E keydown — opens the active portfolio card. */
+    openPressed: false,
+    /** Set for one frame on I keydown — toggle pillar inspect. */
+    inspectPressed: false,
+    /** Sticky: character frozen, camera orbits the inspected pillar. */
+    inspecting: false,
 
     locked: false,
 };
@@ -35,16 +36,8 @@ const keys = Object.create(null);
 
 const LOOK_SCALE = 0.0022;
 
-/** @type {(() => void)|null} */
-let onToggleOverlay = null;
-
-/**
- * @param {HTMLCanvasElement} canvas
- * @param {{ onToggleOverlay?: () => void }} [hooks]
- */
-export function initInput(canvas, hooks) {
-    onToggleOverlay = hooks?.onToggleOverlay ?? null;
-
+/** @param {HTMLCanvasElement} canvas */
+export function initInput(canvas) {
     canvas.addEventListener("click", () => {
         if (!input.locked) canvas.requestPointerLock();
     });
@@ -54,8 +47,6 @@ export function initInput(canvas, hooks) {
         if (!input.locked) {
             // Drop held state so the character doesn't run off while unfocused.
             for (const k in keys) keys[k] = false;
-            input.surf = false;
-            input.spellHeld2 = false;
         }
     });
 
@@ -66,15 +57,6 @@ export function initInput(canvas, hooks) {
     });
 
     canvas.addEventListener("contextmenu", (e) => e.preventDefault());
-
-    document.addEventListener("mousedown", (e) => {
-        if (!input.locked) return;
-        if (e.button === 2) input.surf = true;
-    });
-
-    document.addEventListener("mouseup", (e) => {
-        if (e.button === 2) input.surf = false;
-    });
 
     document.addEventListener(
         "wheel",
@@ -87,47 +69,28 @@ export function initInput(canvas, hooks) {
     );
 
     window.addEventListener("keydown", (e) => {
-        // Overlay toggle works whether or not the pointer is locked.
-        if (e.code === "F1" || e.code === "Backquote") {
+        if (e.code === "Space") {
+            // Space scrolls the page by default; never let it.
             e.preventDefault();
-            onToggleOverlay?.();
-            return;
+            if (!e.repeat) input.jumpPressed = true;
         }
-        // Snow ↔ sand — no menu required.
-        if (e.code === "KeyE" && !e.repeat) {
-            e.preventDefault();
-            set("environment", S.environment === "sand" ? "snow" : "sand");
-            return;
+        if (e.code === "KeyE" && !e.repeat) input.openPressed = true;
+        if (e.code === "KeyI" && !e.repeat) input.inspectPressed = true;
+        if (e.code === "Escape" && !e.repeat && input.inspecting) {
+            input.inspectPressed = true; // same toggle path exits inspect
         }
         if (e.repeat) return;
         keys[e.code] = true;
-
-        const n = SPELL_KEYS[e.code];
-        if (n) {
-            input.spellPressed = n;
-            if (n === 2) input.spellHeld2 = true;
-        }
     });
 
     window.addEventListener("keyup", (e) => {
         keys[e.code] = false;
-        if (SPELL_KEYS[e.code] === 2) input.spellHeld2 = false;
     });
 
     window.addEventListener("blur", () => {
         for (const k in keys) keys[k] = false;
-        input.surf = false;
-        input.spellHeld2 = false;
     });
 }
-
-const SPELL_KEYS = {
-    Digit1: 1,
-    Digit2: 2,
-    Digit3: 3,
-    Digit4: 4,
-    Digit5: 5,
-};
 
 /** Resolve held keys into movement axes. Called once per frame before update. */
 export function pollInput() {
@@ -155,9 +118,7 @@ export function endFrame() {
     input.lookX = 0;
     input.lookY = 0;
     input.zoomDelta = 0;
-    input.spellPressed = 0;
-}
-
-export function isDown(code) {
-    return !!keys[code];
+    input.jumpPressed = false;
+    input.openPressed = false;
+    input.inspectPressed = false;
 }

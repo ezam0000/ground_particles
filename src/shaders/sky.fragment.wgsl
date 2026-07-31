@@ -32,60 +32,39 @@ uniform aerialStrength: f32;
 
 /// Shade a point on the far range.
 ///
-/// Deliberately the *snow field's* material logic, not a separate one: the same
-/// wrapped diffuse, the same SH ambient, the same near-white albedo that is
-/// never 1.0. A distant mountain rendered with its own ad-hoc lighting is the
-/// classic way a matte painting announces itself — it does not sit in the same
-/// light as the ground in front of it.
+/// Deliberately the *ground's* material logic, not a separate one: the same
+/// wrapped diffuse, the same SH ambient, the same aerial haze. A distant ridge
+/// rendered with its own ad-hoc lighting is the classic way a matte painting
+/// announces itself — it does not sit in the same light as the ground in front
+/// of it.
 fn shadeRidge(hit: RidgeHit, dir: vec3f) -> vec3f {
     let N = hit.normal;
     let L = uniforms.sunDir;
 
-    // Snow almost everywhere, rock only on the faces too steep to hold it. This
-    // is a polar range, not an alpine one: there is no snow line to speak of, and
-    // the first version's 120-460 m ramp put rock across the whole visible band
-    // and turned the horizon into a dark smear. Rock is here for the *break* it
-    // gives a white massif, not as a ground cover.
+    // Sand on the shallows, bare rock on the faces too steep to hold it — the
+    // same rule as a snow range, just a desert one. No snow line, no ice: a
+    // far dune massif hazed by its own atmosphere.
     let steep = 1.0 - N.y;
-    let snowMask = clamp(1.0 - smoothstep(0.46, 0.80, steep), 0.0, 1.0);
+    let sandMask = clamp(1.0 - smoothstep(0.46, 0.80, steep), 0.0, 1.0);
 
-    let rock = vec3f(0.052, 0.055, 0.066);
-    let snow = vec3f(0.855, 0.885, 0.945);
-    let albedo = mix(rock, snow, snowMask);
+    let rock = vec3f(0.135, 0.100, 0.072);
+    let sand = vec3f(0.78, 0.62, 0.42);
+    let albedo = mix(rock, sand, sandMask);
 
     let shadow = ridgeShadow(hit.pos, hit.height, L, uniforms.ridgeAmp);
 
     const INV_PI: f32 = 0.31830988618;
-    let diff = wrapDiffuse(dot(N, L), mix(0.15, 0.62, snowMask));
+    let diff = wrapDiffuse(dot(N, L), mix(0.15, 0.62, sandMask));
     var col = albedo * INV_PI * uniforms.sunRadiance * diff * shadow;
 
-    // --- subsurface ---------------------------------------------------------
-    // The term the first version left out, and the reason the range read as a
-    // different material from the field it stands behind.
-    //
-    // Snow is translucent. The snow shader spends most of its budget saying so,
-    // and a mountain of snow with the sun behind it *glows* — it does not go to a
-    // dark silhouette. Without this the range came out as dark warm shapes
-    // against bright warm haze, which is the one combination that reads as dirt,
-    // and it was most visible in exactly the framing where a range should look
-    // its best: looking into a low sun.
-    //
-    // Same `snowSubsurface` the ground runs, so the two cannot disagree about
-    // what back-lit snow does.
-    let V = -dir;
-    col += snowSubsurface(N, L, V, uniforms.sunRadiance, 0.45, snowMask, 1.0)
-         * albedo * mix(0.5, 1.0, shadow);
-
-    // Sky fill. At this distance it is most of what is left after extinction,
-    // and it is the reason distant snow reads blue rather than grey.
+    // Sky fill. At this distance it is most of what is left after extinction.
     col += albedo * INV_PI * shIrradiance(N, uniforms.shR) * uniforms.ambientIntensity;
 
-    // Bounce off the range's own snow, exactly as the field does off itself. A
-    // white massif is lit from every direction by the rest of the massif, and
-    // leaving it out is what makes shaded faces read as too dark by a stop.
+    // Bounce off the range's own sand, exactly as the field does off itself.
+    // Leaving it out is what makes shaded faces read as too dark by a stop.
     col += albedo * INV_PI * shIrradiance(vec3f(0.0, 1.0, 0.0), uniforms.shR)
          * uniforms.ambientIntensity * 0.30 * clamp(-N.y * 0.5 + 0.5, 0.0, 1.0)
-         * snowMask;
+         * sandMask;
 
     // ---- aerial perspective ------------------------------------------------
     //

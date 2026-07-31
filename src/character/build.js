@@ -32,13 +32,15 @@ import {
 } from "./figure.js";
 
 // ------------------------------------------------------------- material slots
-export const M_ROBE = 0;     // deep indigo wool
-export const M_MANTLE = 1;   // lighter blue-grey over-mantle
-export const M_TUNIC = 2;    // pale cream under-layer
-export const M_LEATHER = 3;  // belt and boots
-export const M_SKIN = 4;     // face, deep in shade
-export const M_TRIM = 5;     // pale blue banding
-export const M_FUR = 6;      // hood and cuff trim
+export const M_ROBE = 0;     // Hawaiian shirt (floral albedo)
+export const M_MANTLE = 1;   // bronze helm
+export const M_TUNIC = 2;    // spare / lining
+export const M_LEATHER = 3;  // sneakers
+export const M_SKIN = 4;     // face / forearms
+export const M_TRIM = 5;     // hair
+export const M_FUR = 6;      // unused (fur hidden)
+export const M_PANTS = 7;    // black trousers
+export const M_BRONZE = M_MANTLE;
 
 /** Segments around a limb. 14 is smooth at the distances this is seen from. */
 const SEG = 14;
@@ -139,14 +141,14 @@ function loft(B, rings, matId, ref, capStart, capEnd) {
         const next = rings[Math.min(n - 1, r + 1)];
 
         let ax = next[0] - prev[0], ay = next[1] - prev[1], az = next[2] - prev[2];
-        let al = Math.hypot(ax, ay, az) || 1;
+        const al = Math.hypot(ax, ay, az) || 1;
         ax /= al; ay /= al; az /= al;
 
         // U = axis x ref, W = axis x U — the two axes of the section plane.
         let ux = ay * ref[2] - az * ref[1];
         let uy = az * ref[0] - ax * ref[2];
         let uz = ax * ref[1] - ay * ref[0];
-        let ul = Math.hypot(ux, uy, uz) || 1;
+        const ul = Math.hypot(ux, uy, uz) || 1;
         ux /= ul; uy /= ul; uz /= ul;
         const wx = ay * uz - az * uy;
         const wy = az * ux - ax * uz;
@@ -248,12 +250,13 @@ function limbRings(x0, y0, z0, x1, y1, z1, r0, r1, steps, boneA, boneB, ao, from
 // -----------------------------------------------------------------------------
 
 /**
- * The figure under the garments: head, cowl, torso, arms, trousers, boots.
+ * The figure under the garments: head, torso, arms, trousers, sneakers.
  *
- * Most of this is only seen in slivers — the robe covers the torso, the mantle
- * covers the shoulders. What is genuinely on screen is the hood silhouette, the
- * boots, and the forearms, so that is where the ring counts go.
+ * Hawaiian look: open head (no cowl/scarf), short-sleeve shirt cloth over the
+ * torso, black trousers on the legs, light sneakers.
  */
+const HEAD_C = [0, 1.655, 0.005];
+
 export function buildBody(scene) {
     const B = new Builder();
 
@@ -268,15 +271,15 @@ export function buildBody(scene) {
         const [y, rx, rz] = TORSO[i];
         torso.push(ring(0, y, 0, rx, rz, 0.72, spineBones(y)));
     }
-    loft(B, torso, M_TRIM, [0, 0, 1], true, false);
+    loft(B, torso, M_SKIN, [0, 0, 1], true, false);
 
-    // ---- belt -------------------------------------------------------------
+    // ---- waistband --------------------------------------------------------
     const belt = [
         ring(0, 0.955, 0, 0.153, 0.124, 0.62, spineBones(0.955)),
         ring(0, 0.995, 0, 0.160, 0.130, 0.70, spineBones(0.995)),
         ring(0, 1.035, 0, 0.152, 0.123, 0.62, spineBones(1.035)),
     ];
-    loft(B, belt, M_LEATHER, [0, 0, 1], false, false);
+    loft(B, belt, M_PANTS, [0, 0, 1], false, false);
 
     // ---- neck + head ------------------------------------------------------
     const neck = [
@@ -286,10 +289,6 @@ export function buildBody(scene) {
     ];
     loft(B, neck, M_SKIN, [0, 0, 1], false, false);
 
-    // The skull. Deliberately featureless: the face stays in shadow under the
-    // cowl, and a half-finished face is far worse than a silhouette. It carries
-    // a heavy baked occlusion so the cavity reads dark even when the sun swings
-    // round to face it.
     const head = [];
     for (let i = 0; i <= 8; i++) {
         const a = (i / 8) * Math.PI;
@@ -303,16 +302,115 @@ export function buildBody(scene) {
     }
     loft(B, head, M_SKIN, [0, 0, 1], true, true);
 
-    // A scarf across the lower face, as in the reference. It is what stops the
-    // shadowed skull reading as an empty hood.
-    const scarf = [
-        ring(0, 1.560, 0.010, 0.086, 0.092, 0.30, [B_HEAD, 1, 0, 0]),
-        ring(0, 1.600, 0.012, 0.094, 0.100, 0.34, [B_HEAD, 1, 0, 0]),
-        ring(0, 1.638, 0.008, 0.092, 0.098, 0.30, [B_HEAD, 1, 0, 0]),
-    ];
-    loft(B, scarf, M_TRIM, [0, 0, 1], false, false);
+    // ---- bronze Corinthian-ish helm ----------------------------------------
+    // Bowl over the skull + short crest + nose guard. Face stays open so the
+    // figure still reads as the same character, just Odysseus-adjacent.
+    {
+        const helm = [];
+        for (let i = 0; i <= 7; i++) {
+            const t = i / 7;
+            // From brow (~1.60) up over the crown (~1.76)
+            const a = t * Math.PI * 0.92;
+            const y = HEAD_C[1] - 0.02 + Math.sin(a) * 0.12;
+            const r = 0.02 + Math.cos(a * 0.55) * 0.108;
+            helm.push(ring(
+                0, y, HEAD_C[2],
+                r * 1.05, r * 1.12,
+                0.35 + t * 0.2, [B_HEAD, 1, 0, 0]
+            ));
+        }
+        loft(B, helm, M_BRONZE, [0, 0, 1], false, true);
 
-    buildHood(B);
+        // Nose guard — thin strip down the face midline.
+        const guard = [
+            ring(0, 1.62, 0.090, 0.012, 0.008, 0.4, [B_HEAD, 1, 0, 0]),
+            ring(0, 1.55, 0.095, 0.014, 0.008, 0.4, [B_HEAD, 1, 0, 0]),
+            ring(0, 1.48, 0.088, 0.011, 0.007, 0.4, [B_HEAD, 1, 0, 0]),
+        ];
+        loft(B, guard, M_BRONZE, [1, 0, 0], true, true);
+
+        // Crest plume ridge along the sagittal plane.
+        const crest = [];
+        for (let i = 0; i <= 5; i++) {
+            const t = i / 5;
+            const y = 1.70 + t * 0.10;
+            const z = HEAD_C[2] - 0.04 + t * 0.02;
+            crest.push(ring(0, y, z, 0.018, 0.055, 0.45, [B_HEAD, 1, 0, 0]));
+        }
+        loft(B, crest, M_BRONZE, [1, 0, 0], true, true);
+    }
+
+    // ---- hair --------------------------------------------------------------
+    // Close-cropped shell, a few millimetres proud of the skull. Verts in front
+    // of the hairline sink inside the head, so the hairline emerges from the
+    // geometry rather than from a texture.
+    {
+        const H_ROWS = 7, H_COLS = 24;
+        let prevRow = null;
+        for (let r = 0; r <= H_ROWS; r++) {
+            const t = r / H_ROWS;
+            const y = 1.598 + (1.763 - 1.598) * t;
+            const ey = (y - HEAD_C[1]) / 0.105;
+            const ef = Math.sqrt(Math.max(0, 1 - ey * ey));
+            const rx = (0.089 * ef + 0.004 + 0.009 * ef);
+            const rz = (0.096 * ef + 0.004 + 0.009 * ef);
+            // Hairline: covers everything at the nape, recedes to mid-forehead
+            // at the crown.
+            const hairlineZ = 0.010 + 0.068 * Math.min(1, Math.max(0, (y - 1.60) / 0.12));
+            const row = [];
+            for (let c = 0; c < H_COLS; c++) {
+                const a = (c / H_COLS) * Math.PI * 2;
+                const sa = Math.sin(a), ca = Math.cos(a);
+                const sink = HEAD_C[2] + rz * ca > hairlineZ ? 0.5 : 1.0;
+                row.push(B.vert(
+                    rx * sa * sink,
+                    y - (1 - sink) * 0.01,
+                    HEAD_C[2] + rz * ca * sink,
+                    a * 0.1, t * 0.2, M_TRIM, 0.55 + 0.30 * t,
+                    B_HEAD, 1, 0, 0
+                ));
+            }
+            if (prevRow) {
+                for (let c = 0; c < H_COLS; c++) {
+                    const c2 = (c + 1) % H_COLS;
+                    B.quad(prevRow[c], prevRow[c2], row[c2], row[c]);
+                }
+            }
+            prevRow = row;
+        }
+    }
+
+    // ---- collar --------------------------------------------------------------
+    // Short flared camp-collar band on the shirt's print. The front dips into a
+    // shallow V, exposing the chest — the open-collar read.
+    {
+        const C_ROWS = 3, C_COLS = 20;
+        let prevRow = null;
+        for (let r = 0; r <= C_ROWS; r++) {
+            const t = r / C_ROWS;
+            const row = [];
+            for (let c = 0; c < C_COLS; c++) {
+                const a = (c / C_COLS) * Math.PI * 2;
+                const sa = Math.sin(a), ca = Math.cos(a);
+                const front = Math.max(0, ca);
+                const y = 1.372 + 0.052 * t - 0.050 * front * front;
+                const rad = 0.155 + 0.045 * t - 0.020 * front;
+                row.push(B.vert(
+                    rad * sa, y,
+                    0.005 + rad * 0.82 * ca + 0.012 * front * t,
+                    a * 0.12, t * 0.07, M_ROBE, 0.75,
+                    ...(y > 1.40 ? [B_NECK, 1, 0, 0] : [B_CHEST, 1, 0, 0])
+                ));
+            }
+            if (prevRow) {
+                for (let c = 0; c < C_COLS; c++) {
+                    const c2 = (c + 1) % C_COLS;
+                    B.quad(prevRow[c], prevRow[c2], row[c2], row[c]);
+                }
+            }
+            prevRow = row;
+        }
+    }
 
     // ---- arms -------------------------------------------------------------
     for (let a = 0; a < 2; a++) {
@@ -321,30 +419,30 @@ export function buildBody(scene) {
         const fo = a === 0 ? B_FORE_L : B_FORE_R;
         const hd = a === 0 ? B_HAND_L : B_HAND_R;
 
+        // Upper arm under the short cloth sleeve — skin so the shirt is cloth-only.
         const upper = limbRings(
             s * 0.185, 1.400, 0, s * 0.230, 1.123, 0,
             0.064, 0.050, 4, up, fo, 0.55, 0.72, 1.0
         );
-        loft(B, upper, M_ROBE, [0, 0, 1], true, false);
+        loft(B, upper, M_SKIN, [0, 0, 1], true, false);
 
+        // Bare forearm past the short sleeve.
         const fore = limbRings(
             s * 0.230, 1.123, 0, s * 0.243, 0.866, 0.016,
             0.050, 0.042, 4, fo, hd, 0.62, 0.75, 1.0
         );
-        loft(B, fore, M_ROBE, [0, 0, 1], false, false);
+        loft(B, fore, M_SKIN, [0, 0, 1], false, false);
 
-        // The hand is a mitt. Fingers at this distance are three pixels of
-        // noise; a clean silhouette reads better and costs nothing.
         const hand = [
             ring(s * 0.243, 0.866, 0.016, 0.044, 0.038, 0.55, [hd, 1, 0, 0]),
             ring(s * 0.245, 0.820, 0.024, 0.050, 0.040, 0.55, [hd, 1, 0, 0]),
             ring(s * 0.247, 0.780, 0.032, 0.046, 0.036, 0.52, [hd, 1, 0, 0]),
             ring(s * 0.248, 0.752, 0.038, 0.030, 0.026, 0.50, [hd, 1, 0, 0]),
         ];
-        loft(B, hand, M_LEATHER, [0, 0, 1], false, true);
+        loft(B, hand, M_SKIN, [0, 0, 1], false, true);
     }
 
-    // ---- legs and boots ---------------------------------------------------
+    // ---- legs and sneakers ------------------------------------------------
     for (let l = 0; l < 2; l++) {
         const s = l === 0 ? -1 : 1;
         const th = l === 0 ? B_THIGH_L : B_THIGH_R;
@@ -353,30 +451,28 @@ export function buildBody(scene) {
 
         const thigh = limbRings(
             s * 0.100, 0.905, 0, s * 0.100, 0.460, 0,
-            0.114, 0.086, 5, th, sh, 0.5, 0.74, 1.0
+            0.134, 0.106, 5, th, sh, 0.5, 0.74, 1.0
         );
-        loft(B, thigh, M_ROBE, [0, 0, 1], true, false);
+        loft(B, thigh, M_PANTS, [0, 0, 1], true, false);
 
-        // Trousers narrow to the ankle then flare into the boot shaft.
         const shin = [
-            ring(s * 0.100, 0.460, 0, 0.086, 0.086, 0.55, [sh, 1, 0, 0]),
-            ring(s * 0.100, 0.360, 0.004, 0.076, 0.076, 0.55, [sh, 1, 0, 0]),
-            ring(s * 0.100, 0.270, 0.006, 0.070, 0.070, 0.52, [sh, 1, 0, 0]),
-            ring(s * 0.100, 0.200, 0.006, 0.075, 0.076, 0.48, [sh, 0.6, ft, 0.4]),
-            ring(s * 0.100, 0.140, 0.004, 0.080, 0.082, 0.44, [sh, 0.25, ft, 0.75]),
-            ring(s * 0.100, 0.100, 0.000, 0.074, 0.078, 0.42, [ft, 1, 0, 0]),
+            ring(s * 0.100, 0.460, 0, 0.106, 0.106, 0.55, [sh, 1, 0, 0]),
+            ring(s * 0.100, 0.360, 0.004, 0.098, 0.098, 0.55, [sh, 1, 0, 0]),
+            ring(s * 0.100, 0.270, 0.006, 0.092, 0.092, 0.52, [sh, 1, 0, 0]),
+            ring(s * 0.100, 0.200, 0.006, 0.096, 0.098, 0.48, [sh, 0.6, ft, 0.4]),
+            ring(s * 0.100, 0.140, 0.004, 0.100, 0.102, 0.44, [sh, 0.25, ft, 0.75]),
+            ring(s * 0.100, 0.100, 0.000, 0.094, 0.098, 0.42, [ft, 1, 0, 0]),
         ];
-        loft(B, shin, M_ROBE, [0, 0, 1], false, false);
+        loft(B, shin, M_PANTS, [0, 0, 1], false, false);
 
-        // The boot runs along the foot's own axis, so it swings with the ankle
-        // roll rather than being a block bolted to the shin.
+        // Chunky white sneakers (reference dad-shoe silhouette).
         const boot = [
-            ring(s * 0.100, 0.055, -0.088, 0.046, 0.052, 0.35, [ft, 1, 0, 0]),
-            ring(s * 0.100, 0.058, -0.050, 0.056, 0.066, 0.38, [ft, 1, 0, 0]),
-            ring(s * 0.100, 0.054, 0.010, 0.058, 0.060, 0.42, [ft, 1, 0, 0]),
-            ring(s * 0.100, 0.048, 0.078, 0.056, 0.050, 0.45, [ft, 1, 0, 0]),
-            ring(s * 0.100, 0.043, 0.142, 0.050, 0.043, 0.48, [ft, 1, 0, 0]),
-            ring(s * 0.100, 0.040, 0.190, 0.033, 0.031, 0.48, [ft, 1, 0, 0]),
+            ring(s * 0.100, 0.062, -0.100, 0.052, 0.058, 0.35, [ft, 1, 0, 0]),
+            ring(s * 0.100, 0.068, -0.052, 0.064, 0.074, 0.38, [ft, 1, 0, 0]),
+            ring(s * 0.100, 0.062, 0.012, 0.068, 0.070, 0.42, [ft, 1, 0, 0]),
+            ring(s * 0.100, 0.054, 0.082, 0.064, 0.056, 0.45, [ft, 1, 0, 0]),
+            ring(s * 0.100, 0.048, 0.150, 0.056, 0.048, 0.48, [ft, 1, 0, 0]),
+            ring(s * 0.100, 0.044, 0.200, 0.038, 0.036, 0.48, [ft, 1, 0, 0]),
         ];
         loft(B, boot, M_LEATHER, [0, 1, 0], true, true);
     }
@@ -395,9 +491,6 @@ export function buildBody(scene) {
  * The rim curve this produces is reused verbatim by the fur trim, so the two can
  * never drift apart.
  */
-const HOOD_COLS = 34;
-const HOOD_ROWS = 9;
-const HEAD_C = [0, 1.655, 0.005];
 const FACE_DIR = (() => {
     const v = [0, -0.28, 0.96];
     const l = Math.hypot(v[0], v[1], v[2]);
@@ -419,75 +512,6 @@ export function hoodRimPoint(s, out) {
     out[1] = cy + uy * 0.152 * Math.sin(a) + wy * 0.163 * Math.cos(a);
     out[2] = cz + uz * 0.152 * Math.sin(a) + wz * 0.163 * Math.cos(a);
     return out;
-}
-
-function hoodBasePoint(s, out) {
-    const a = s * Math.PI * 2;
-    out[0] = 0.212 * Math.sin(a);
-    out[1] = 1.352;
-    out[2] = -0.012 - 0.182 * Math.cos(a);
-    return out;
-}
-
-function buildHood(B) {
-    const rim = [0, 0, 0];
-    const base = [0, 0, 0];
-    let prevRow = null;
-
-    for (let r = 0; r <= HOOD_ROWS; r++) {
-        const t = r / HOOD_ROWS;
-        const row = [];
-        for (let c = 0; c < HOOD_COLS; c++) {
-            const s = c / HOOD_COLS;
-            hoodRimPoint(s, rim);
-            hoodBasePoint(s, base);
-
-            // Control point.
-            //
-            // Not the chord's midpoint pushed away from the skull: at the crown
-            // the chord runs from a rim point above and in front of the head to
-            // a base point below and behind it, straight through the skull, so
-            // its midpoint is already inside the head and "away from the head
-            // centre" points down into the shoulders.
-            //
-            // The control direction has to be stated, not derived. It sweeps
-            // from up-and-back over the crown, through sideways at the temples,
-            // to down-and-forward under the chin — which is the same sweep the
-            // rim parameter already makes, so it comes straight off `s`.
-            const a = s * Math.PI * 2;
-            const sa = Math.sin(a), ca = Math.cos(a);
-            let nx = sa * 1.0;
-            let ny = ca * 0.84;
-            let nz = ca * -0.54;
-            const nl = Math.hypot(nx, ny, nz) || 1;
-            nx /= nl; ny /= nl; nz /= nl;
-            // Radius out from the head: widest over the crown, tightest at the
-            // throat, which is what gives the cowl its peak.
-            const rad = 0.205 + 0.062 * ca;
-            const mx = HEAD_C[0] + nx * rad;
-            const my = HEAD_C[1] + ny * rad;
-            const mz = HEAD_C[2] + nz * rad;
-
-            const it = 1 - t;
-            const px = it * it * rim[0] + 2 * it * t * mx + t * t * base[0];
-            const py = it * it * rim[1] + 2 * it * t * my + t * t * base[1];
-            const pz = it * it * rim[2] + 2 * it * t * mz + t * t * base[2];
-
-            // Occlusion: the inside of a cowl sees almost no sky. It is the
-            // single cheapest thing that makes a hood read as deep.
-            const ao = 0.34 + 0.55 * Math.min(1, t * 2.2);
-            // UVs in metres: the rim is about a metre round and the sweep from
-            // rim to shoulder about 45 cm.
-            row.push(B.vert(px, py, pz, s * 1.02, t * 0.45, M_ROBE, ao, B_HOOD, 1, 0, 0));
-        }
-        if (prevRow) {
-            for (let c = 0; c < HOOD_COLS; c++) {
-                const c2 = (c + 1) % HOOD_COLS;
-                B.quad(prevRow[c], prevRow[c2], row[c2], row[c]);
-            }
-        }
-        prevRow = row;
-    }
 }
 
 // -----------------------------------------------------------------------------

@@ -23,8 +23,6 @@ import { Vector3, Vector4, Matrix } from "@babylonjs/core/Maths/math.vector";
 import { Color4 } from "@babylonjs/core/Maths/math.color";
 import { RenderTargetTexture } from "@babylonjs/core/Materials/Textures/renderTargetTexture";
 import { Constants } from "@babylonjs/core/Engines/constants";
-import { ShaderMaterial } from "@babylonjs/core/Materials/shaderMaterial";
-import { ShaderLanguage } from "@babylonjs/core/Materials/shaderLanguage";
 
 export const CASCADE_COUNT = 3;
 const RESOLUTION = 2048;

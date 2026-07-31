@@ -20,7 +20,7 @@
  * construction.
  */
 
-import { setFrameFromDir, invertRigid, mul, xformPoint } from "../core/mat4.js";
+import { setFrameFromDir, invertRigid, mul } from "../core/mat4.js";
 
 // --------------------------------------------------------------- bone indices
 export const B_ROOT = 0;
@@ -233,7 +233,6 @@ export class Figure {
         const h = Math.min(dt, 1 / 30);
         this._t += h;
 
-        const surf = ch.surf;
         const speed = ch.speed;
         const run = Math.min(1, speed / 5.4);
 
@@ -245,44 +244,39 @@ export class Figure {
 
         // -------------------------------------------------------- body attitude
         // Lean forward with speed, and *into* acceleration — the classic read
-        // that a figure is pushing rather than being dragged.
+        // that a figure is pushing rather than being dragged. Clamped: a jump
+        // landing is the largest deceleration this rig ever sees, and unclamped
+        // it would throw the torso backwards into a fall pose.
         const fwdAcc =
             ch.acceleration.x * Math.sin(ch.facing) + ch.acceleration.z * Math.cos(ch.facing);
-        // Clamped, because the accelerations at either end of a surf run are an
-        // order of magnitude larger than anything walking produces: letting go at
-        // top speed decelerates at 30 m/s^2, which unclamped throws the torso
-        // twenty degrees backwards and reads as a fall rather than as a scrub.
         const pitchWant =
             0.10 * run
-            + 0.012 * clamp(fwdAcc, -9, 22)
-            + surf * (0.30 + 0.16 * ch.speed01);
+            + 0.012 * clamp(fwdAcc, -9, 22);
         this.pitch = damp(this.pitch, pitchWant, 7, h);
 
-        const rollWant = ch.lean * (0.16 + 0.34 * surf);
+        const rollWant = ch.lean * 0.16;
         this.roll = damp(this.roll, rollWant, 8, h);
 
         // Vertical bob: the pelvis drops through each stance and rises over the
-        // supporting leg, twice per stride. Suppressed while surfing, where the
-        // stance is a static crouch.
-        const bobWant =
-            (1 - surf) * (-0.028 * run * (0.5 - 0.5 * Math.cos(4 * Math.PI * ch.gaitPhase)));
+        // supporting leg, twice per stride.
+        const bobWant = -0.028 * run * (0.5 - 0.5 * Math.cos(4 * Math.PI * ch.gaitPhase));
         this.bob = damp(this.bob, bobWant, 18, h);
 
-        // Crouch: a little at running speed, a lot on the board.
-        const crouch = 0.035 * run + surf * (0.13 + 0.05 * ch.speed01);
-        this.hipY = damp(this.hipY, HIP_HEIGHT - crouch, 9, h);
+        // Crouch a little at running speed.
+        this.hipY = damp(this.hipY, HIP_HEIGHT - 0.035 * run, 9, h);
 
-        // The figure settles into the snow it is standing on. Reading the real
+        // The figure settles into the sand it is standing on. Reading the real
         // depth would mean a GPU readback; this is the same number the contact
-        // brushes are writing, held on the CPU.
-        this.sink = damp(this.sink, 0.045 + surf * 0.055, 4, h);
+        // brushes are writing, held on the CPU. Nothing to settle into mid-air.
+        this.sink = damp(this.sink, ch.airborne ? 0 : 0.045, 4, h);
 
         // ------------------------------------------------------------- spine
         const gx = ch.position.x;
         const gz = ch.position.z;
-        const groundY = this.terrain.heightAt(gx, gz);
 
-        const rootY = groundY - this.sink + this.hipY + this.bob;
+        // ch.position.y is the ground height when grounded and the flight
+        // height when not, so the root rides a jump with no special case.
+        const rootY = ch.position.y - this.sink + this.hipY + this.bob;
 
         composeBasis(ch.facing, this.pitch, this.roll);
         const rX = _axes[0], rY = _axes[1], rZ = _axes[2];
@@ -291,7 +285,7 @@ export class Figure {
 
         // Pelvis. Its yaw counter-rotates against the shoulders during a stride,
         // which is most of what stops a procedural walk reading as a shop dummy.
-        const twist = (1 - surf) * 0.13 * run * Math.sin(2 * Math.PI * ch.gaitPhase);
+        const twist = 0.13 * run * Math.sin(2 * Math.PI * ch.gaitPhase);
         composeBasis(ch.facing + twist, this.pitch, this.roll);
         this._setBone(B_ROOT, gx, rootY, gz, _axes[3], _axes[4], _axes[5], _axes[6], _axes[7], _axes[8]);
 
@@ -304,7 +298,7 @@ export class Figure {
         );
 
         const chestTwist = -twist * 1.5;
-        const chestPitch = this.pitch + 0.05 * run + surf * 0.10;
+        const chestPitch = this.pitch + 0.05 * run;
         composeBasis(ch.facing + chestTwist, chestPitch, this.roll * 1.15);
         const cUx = _axes[3], cUy = _axes[4], cUz = _axes[5];
         const cFx = _axes[6], cFy = _axes[7], cFz = _axes[8];
@@ -319,7 +313,7 @@ export class Figure {
         // ------------------------------------------------------------- head
         // Head stabilisation: the head stays much closer to level than the chest
         // it sits on. Real necks do this and it is very obvious when missing.
-        this.headPitch = damp(this.headPitch, -chestPitch * 0.62 + surf * 0.10, 9, h);
+        this.headPitch = damp(this.headPitch, -chestPitch * 0.62, 9, h);
         this.headYaw = damp(this.headYaw, ch.lean * -0.22, 6, h);
         composeBasis(ch.facing + chestTwist + this.headYaw, chestPitch + this.headPitch, this.roll * 0.5);
         const headX = neckX + cUx * 0.09, headY = neckY + cUy * 0.09, headZ = neckZ + cUz * 0.09;
@@ -362,23 +356,43 @@ export class Figure {
      * motion, camera motion or frame-rate variation can move a planted foot.
      */
     _updateFeet(h, ch) {
-        const surf = ch.surf;
         const speed = ch.speed;
         const run = Math.min(1, speed / 5.4);
+
+        const fwdX = Math.sin(ch.facing), fwdZ = Math.cos(ch.facing);
+        const rgtX = Math.cos(ch.facing), rgtZ = -Math.sin(ch.facing);
+
+        // ------------------------------------------------------------- air
+        // Mid-jump there is no stance machine: both feet trail tucked under the
+        // hips. Clearing `_wasStance` means the first grounded frame after
+        // touchdown reads as a fresh plant — which is exactly what stamps the
+        // landing print in the contact pass.
+        if (ch.airborne) {
+            for (let f = 0; f < 2; f++) {
+                const side = f === 0 ? -0.105 : 0.105;
+                const o = f * 3;
+                const tx = ch.position.x + rgtX * side - fwdX * 0.06;
+                const tz = ch.position.z + rgtZ * side - fwdZ * 0.06;
+                const ty = ch.position.y + 0.12;
+                this.footPos[o] = damp(this.footPos[o], tx, 12, h);
+                this.footPos[o + 1] = damp(this.footPos[o + 1], ty, 12, h);
+                this.footPos[o + 2] = damp(this.footPos[o + 2], tz, 12, h);
+                this.footWeight[f] = damp(this.footWeight[f], 0, 10, h);
+                this.touchdown[f] = false;
+                this._wasStance[f] = false;
+            }
+            return;
+        }
+
         // Duty factor: a walk keeps both feet down for a moment, a run has a
         // flight phase. Interpolating between them is what makes the transition
         // from walk to run read as a gait change and not a speed change.
         const duty = 0.66 - 0.20 * run;
 
-        const fwdX = Math.sin(ch.facing), fwdZ = Math.cos(ch.facing);
-        const rgtX = Math.cos(ch.facing), rgtZ = -Math.sin(ch.facing);
-
         // Half a stride ahead, scaled by speed — this is the step length, and it
         // has to match the controller's stride or the feet skate.
         const half = 0.34 + 0.42 * run;
-        // The controller owns this decision — see `stepping` there. Re-deriving
-        // it from `surf` here is how the feet and the footprints end up
-        // disagreeing about whether the character is walking.
+        // The controller owns this decision — see `stepping` there.
         const moving = speed > 0.2 && ch.stepping;
 
         for (let f = 0; f < 2; f++) {
@@ -437,25 +451,6 @@ export class Figure {
 
             this._wasStance[f] = stance;
         }
-
-        // Surfing: both feet ride the board, offset along the body's long axis
-        // and rotated across the direction of travel. Blended in, never snapped.
-        if (surf > 0.001) {
-            for (let f = 0; f < 2; f++) {
-                // Wide and staggered: feet apart across the direction of travel
-                // for lateral stability, with the leading foot a little ahead.
-                const lateral = f === 0 ? -0.17 : 0.17;
-                const along = f === 0 ? 0.11 : -0.11;
-                const sx = ch.position.x + fwdX * along + rgtX * lateral;
-                const sz = ch.position.z + fwdZ * along + rgtZ * lateral;
-                const sy = this.terrain.heightAt(sx, sz) - this.sink;
-                const o = f * 3;
-                this.footPos[o] += (sx - this.footPos[o]) * surf;
-                this.footPos[o + 1] += (sy - this.footPos[o + 1]) * surf;
-                this.footPos[o + 2] += (sz - this.footPos[o + 2]) * surf;
-                this.footWeight[f] = Math.max(this.footWeight[f], surf);
-            }
-        }
     }
 
     /**
@@ -509,16 +504,12 @@ export class Figure {
     }
 
     /**
-     * Arms. Counter-swing against the legs while walking, and a wide, low
-     * bending stance while surfing — hands out and forward, which is the
-     * Water Tribe pose in the reference and also just what a person does at
-     * twenty metres a second.
+     * Arms. Counter-swing against the legs while walking, plus a slow idle
+     * drift so a standing figure is never perfectly still.
      */
     _poseArms(h, ch, cx, cy, cz, rX, rY, rZ, uX, uY, uZ, fX, fY, fZ) {
-        const surf = ch.surf;
         const run = Math.min(1, ch.speed / 5.4);
-        const swing = Math.sin(2 * Math.PI * ch.gaitPhase) * (0.20 + 0.42 * run) * (1 - surf);
-        // Slow idle drift so a standing figure is never perfectly still.
+        const swing = Math.sin(2 * Math.PI * ch.gaitPhase) * (0.20 + 0.42 * run);
         const idle = Math.sin(this._t * 0.9) * 0.02 + Math.sin(this._t * 1.7 + 1.3) * 0.012;
 
         for (let a = 0; a < 2; a++) {
@@ -539,50 +530,9 @@ export class Figure {
             // does exactly what it is told — locks the elbow — and the figure
             // walks around with two straight poles for arms.
             const sw = swing * -sgn;
-            let tx = _sh[0] + fX * (sw * 0.38) - uX * 0.43 + rX * (sgn * 0.11);
-            let ty = _sh[1] + fY * (sw * 0.38) - uY * 0.43 + rY * (sgn * 0.11);
-            let tz = _sh[2] + fZ * (sw * 0.38) - uZ * 0.43 + rZ * (sgn * 0.11);
-            ty += idle * sgn;
-
-            // ---- cast target: both hands up and out along the aim -----------
-            //
-            // A wide base, the leading hand extended along the flow and the
-            // trailing hand drawn back across the body, so the arms describe the
-            // arc the water is about to take. The right hand leads because that
-            // is the hand the ribbon is emitted from.
-            //
-            // Blended, not switched, and it composes with the walk swing rather
-            // than replacing it — a character casting while walking still walks.
-            const cast = ch.cast;
-            if (cast > 0.001) {
-                const ax = ch.castAimX, ay = ch.castAimY, az = ch.castAimZ;
-                // The leading hand reaches along the aim; the trailing one sits
-                // low and inboard, cocked back.
-                const lead = a === 1 ? 1 : 0;
-                const outward = lead ? 0.30 : -0.16;
-                const along = lead ? 0.52 : 0.16;
-                const lift = lead ? 0.26 : 0.02;
-                const cx = _sh[0] + rX * (sgn * 0.30 + outward * sgn) + ax * along + uX * lift;
-                const cy = _sh[1] + rY * (sgn * 0.30) + ay * along + uY * lift + lift * 0.6;
-                const cz = _sh[2] + rZ * (sgn * 0.30 + outward * sgn) + az * along + uZ * lift;
-                tx += (cx - tx) * cast;
-                ty += (cy - ty) * cast;
-                tz += (cz - tz) * cast;
-            }
-
-            // ---- surf target: out, forward and a little down ----------------
-            if (surf > 0.001) {
-                const carve = ch.carve;
-                // Trailing arm rises, leading arm drops into the turn — the
-                // same asymmetry a snowboarder holds through a carve.
-                const rise = 0.02 + carve * sgn * 0.22;
-                const sx = _sh[0] + rX * (sgn * 0.33) + fX * 0.24 + uX * rise;
-                const sy = _sh[1] + rY * (sgn * 0.33) + fY * 0.24 + uY * rise;
-                const sz = _sh[2] + rZ * (sgn * 0.33) + fZ * 0.24 + uZ * rise;
-                tx += (sx - tx) * surf;
-                ty += (sy - ty) * surf;
-                tz += (sz - tz) * surf;
-            }
+            const tx = _sh[0] + fX * (sw * 0.38) - uX * 0.43 + rX * (sgn * 0.11);
+            const ty = _sh[1] + fY * (sw * 0.38) - uY * 0.43 + rY * (sgn * 0.11) + idle * sgn;
+            const tz = _sh[2] + fZ * (sw * 0.38) - uZ * 0.43 + rZ * (sgn * 0.11);
 
             // Elbows point back and out.
             const px = -fX + rX * (sgn * 0.55), py = -fY + rY * (sgn * 0.55) - 0.35, pz = -fZ + rZ * (sgn * 0.55);
@@ -607,12 +557,6 @@ export class Figure {
             hx /= hl; hy /= hl; hz /= hl;
             this._setBone(handB, tx, ty, tz, hx, hy, hz, fX, fY, fZ);
         }
-    }
-
-    /** World position of a hand, for spell emitters. Writes 3 floats to `out`. */
-    handPosition(which, out, od) {
-        const b = which === 0 ? B_HAND_L : B_HAND_R;
-        xformPoint(this.world, b * 16, 0, 0.09, 0, out, od);
     }
 }
 

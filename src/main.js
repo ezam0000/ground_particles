@@ -1,38 +1,34 @@
 /**
- * SNOWFLOW — entry point and frame orchestration.
+ * PORTFOLIO DUNES — entry point and frame orchestration.
+ *
+ * A walkable portfolio on the SNOWFLOW engine: sand-only, no surf, no spells.
+ * The character strolls a dune field where each project stands as a monolith;
+ * approach one and its card appears, press E and the site opens.
  *
  * WebGPU only, by design. No WebGL path, no feature-detect branches: if the
  * adapter isn't there we say so once and stop.
  */
 
 import { WebGPUEngine } from "@babylonjs/core/Engines/webgpuEngine";
-// Side-effect import: installs `captureGPUFrameTime` / `getGPUFrameTimeCounter`
-// onto the engine prototype, which is what makes the overlay's GPU row a real
-// GPU number rather than the presentation cadence.
-import "@babylonjs/core/Engines/AbstractEngine/abstractEngine.timeQuery";
 import { Scene } from "@babylonjs/core/scene";
 import { Vector3, Color3, Color4 } from "@babylonjs/core/Maths/math";
 
 import { registerShaders } from "./shaders/registry.js";
 import { S, onChange } from "./core/settings.js";
-import {
-    sample, checkSpike, stats, mark, installDrawCounter, endFrameDraws,
-} from "./core/perf.js";
 import { initInput, pollInput, endFrame, input } from "./core/input.js";
 import { CameraRig } from "./core/camera.js";
 import { CharacterController } from "./character/controller.js";
 import { Character } from "./character/character.js";
 import { SnowContact } from "./character/snowContact.js";
 import { SprayField } from "./vfx/particles.js";
-import { SurfWake } from "./vfx/surfWake.js";
-import { SpellSystem } from "./spells/spellSystem.js";
-import { Overlay } from "./ui/overlay.js";
+import { SpellLights } from "./spells/spellLights.js";
 import { Sky } from "./render/sky.js";
 import { ShadowSystem } from "./render/shadows.js";
 import { Terrain } from "./terrain/terrain.js";
 import { DepthPass } from "./render/depthPass.js";
 import { PostChain } from "./post/postChain.js";
-import { updateEnv } from "./core/envProfile.js";
+import { Pedestals } from "./portfolio/pedestals.js";
+import { updateEnv, getLerped } from "./core/envProfile.js";
 import { whenReady } from "./core/gpuUtil.js";
 import * as loading from "./core/loading.js";
 
@@ -69,7 +65,7 @@ async function boot() {
     // this feature. Every desktop GPU that can run this demo has it.
     const filterable = engine.getCaps().textureFloatLinearFiltering;
     if (!filterable) {
-        console.warn("[snowflow] float32-filterable unavailable; height will step");
+        console.warn("[dunes] float32-filterable unavailable; height will step");
     }
 
     const applyScale = () => engine.setHardwareScalingLevel(1 / S.resolutionScale);
@@ -77,11 +73,6 @@ async function boot() {
     onChange("resolutionScale", applyScale);
     window.addEventListener("resize", () => engine.resize());
 
-    installDrawCounter(engine);
-    // WebGPU timestamp queries. The engine is created with `enableAllFeatures`,
-    // so `timestamp-query` is on wherever the adapter has it; if it does not,
-    // the counter simply stays at zero and the overlay shows a dash.
-    engine.captureGPUFrameTime(true);
     registerShaders();
 
     await loading.phase("building scene", 0.12);
@@ -91,7 +82,7 @@ async function boot() {
     scene.autoClear = true;
     // Do NOT clear depth between rendering groups. Babylon clears depth before
     // every group by default; here group 1 is the opaque scene and group 2 is
-    // the alpha-blended water and spray, which must depth-test against it.
+    // the alpha-blended spray, which must depth-test against it.
     scene.setRenderingAutoClearDepthStencil(1, false);
     scene.setRenderingAutoClearDepthStencil(2, false);
     // No stock lights: every material here computes its own lighting.
@@ -123,7 +114,7 @@ async function boot() {
     onChange("showTerrain", (v) => (terrain.mesh.isVisible = v));
     depthPass.registerCaster(terrain.mesh, terrain.makePrepassMaterial());
 
-    await loading.phase("placing character", 0.62);
+    await loading.phase("placing character", 0.55);
 
     const character = new CharacterController(terrain);
     character.position.set(0, 0, 0);
@@ -134,41 +125,34 @@ async function boot() {
     onChange("showCharacter", (v) => figure.setVisible(v));
     figure.registerPrepass(depthPass);
 
-    // Airborne snow: footfall kick now, the surf plume and spell spray later.
+    // Airborne grit: footfall kicks and jump-landing bursts.
     const spray = new SprayField(scene, terrain, sky, shadows);
 
-    // Feet and the surf groove write into the terrain state buffer through here.
+    // Feet write into the terrain state buffer through here.
     const contact = new SnowContact(character, terrain.deform, figure.figure, spray);
 
-    // The breaking wave, its bow crest and the plume it sheds.
-    const wake = new SurfWake(scene, sky, shadows, character, spray, terrain);
-    onChange("showWake", (v) => wake.setEnabled(v));
-    wake.registerPrepass(depthPass);
+    // Every lit material declares the spell-light pool uniforms. Pedestals fill
+    // the pool each frame with plaza / pedestal spots; everyone else reads it.
+    const lights = new SpellLights();
+    for (const m of [terrain.material, figure.bodyMat, figure.clothMat, spray.material]) {
+        lights.apply(m);
+    }
 
-    // The five spells, the water body they bend and the ice they leave. Every
-    // one of them writes into the same terrain state buffer the feet and the
-    // wake do, and lights the snow through the same four-slot pool.
-    const spells = new SpellSystem(
-        scene, sky, shadows, terrain, character, figure.figure, rig, spray
-    );
-    // Every surface a spell can light.
-    spells.addConsumers(
-        terrain.material, figure.bodyMat, figure.clothMat,
-        wake.material, spray.material
-    );
-    spells.registerPrepass(depthPass);
+    await loading.phase("planting monoliths", 0.62);
 
-    // The rig needs ground heights to keep the spring arm above the snow.
+    // Three plazas: education, experience, projects — authored GLB pillars.
+    const pedestals = new Pedestals(scene, terrain, sky, shadows, depthPass, lights);
+
+    // The rig needs ground heights to keep the spring arm above the sand.
     rig.groundAt = (x, z) => terrain.heightAt(x, z);
 
     const post = new PostChain(scene, rig.camera, depthPass, sky);
 
-    const overlay = new Overlay({ rig, character });
-    initInput(canvas, { onToggleOverlay: () => overlay.toggle() });
+    initInput(canvas);
 
     // ------------------------------------------------------------- warm-up
     // Everything that can compile, compiles here — behind the loading screen.
-    await loading.phase("compiling pipelines", 0.78);
+    await loading.phase("compiling pipelines", 0.8);
     shadows.update(rig.camera, sky.sunDir);
     sky.render(rig, 0);
     await terrain.warmUp();
@@ -178,28 +162,23 @@ async function boot() {
     await figure.warmUp();
     spray.update(0, rig.camera.position);
     await spray.warmUp();
-    await wake.warmUp();
-    await spells.warmUp(
-        character.position.x + 3, character.position.y, character.position.z + 3
-    );
+    pedestals.update(character.position, rig.camera.position, getLerped());
+    await pedestals.warmUp();
     await whenReady(sky.material, "sky material", [sky.mesh, false]);
     await depthPass.warmUp();
-    post.update(0, 0, rig.distance);
+    post.update(0, rig.distance);
     const passes = post.passes;
     for (let i = 0; i < passes.length; i++) {
         await whenReady(passes[i], "post:" + passes[i].name);
     }
 
-    await loading.phase("warming render targets", 0.92);
+    await loading.phase("warming render targets", 0.94);
     // A few real frames so every render target is allocated and every pipeline
     // has actually been bound at least once.
     for (let i = 0; i < 3; i++) {
         scene.render();
         await loading.nextFrame();
     }
-    // Only now: the spell meshes had to be standing *through* those frames for
-    // their render pipelines to exist. See `WaterBody.warmUp`.
-    spells.finishWarmUp();
 
     // ------------------------------------------------------------- run loop
     let prev = performance.now();
@@ -214,23 +193,17 @@ async function boot() {
         time += dt;
 
         pollInput();
-        // Advance snow↔sand blend even when freezeTime zeros dt (uses a frame
-        // step inside updateEnv) so the overlay toggle still completes.
         updateEnv(dt);
 
-        // Per-system CPU timing. Babylon's WebGPU timestamp queries are
-        // whole-frame, so the GPU row is a total and these are not subdivisions
-        // of it — the overlay labels them `cpu` for that reason.
-        const tFrame = performance.now();
-
+        pedestals.pollInspect(rig, character.position);
         character.update(dt, rig);
+        pedestals.resolveCollision(character.position);
         terrain.heightfield.clampToPlayArea(character.position);
         // Pose and simulate before the contact pass: the footprints are stamped
         // at the boot's actual planted position, which only exists once the
         // figure has been solved.
         figure.update(dt);
         contact.update(dt);
-        const tChar = performance.now();
 
         _vel.copyFrom(character.velocity);
         rig.update(dt, character.position, _vel, character.lean, character.speed01);
@@ -239,60 +212,36 @@ async function boot() {
         // passes derive from the camera. Must be after the rig has moved and
         // before anything reads `scene.getTransformMatrix()` — which the depth
         // prepass and the beauty pass both do.
-        post.update(dt, character.streak01, rig.distance);
+        post.update(dt, rig.distance);
         sky.update();
         sky.render(rig, time);
         shadows.update(rig.camera, sky.sunDir);
-        // After the shadow refit, so the water and the ice carry this frame's
-        // cascade matrices; before the terrain, so the brushes every spell
-        // writes are in the staging array when the simulation pass runs.
-        spells.update(dt, rig.camera.position);
-        const tSpells = performance.now();
+        // After the shadow refit, so every lit material carries this frame's
+        // cascade matrices; before the terrain, so the brushes are in the
+        // staging array when the simulation pass runs.
+        pedestals.update(character.position, rig.camera.position, getLerped());
+        // Pedestals just refilled the light pool — push it into the rest of the scene.
+        for (const m of [terrain.material, figure.bodyMat, figure.clothMat, spray.material]) {
+            lights.apply(m);
+        }
         terrain.update(rig.camera.position, character.position, dt);
-        const tTerrain = performance.now();
         // After the shadow refit, so the figure's uniforms carry this frame's
         // cascade matrices rather than last frame's.
         figure.sync(rig.camera.position);
-        // Before the spray: the wake decides where its own lip is, and the
-        // grains it sheds have to be in the pool before the pool is uploaded.
-        wake.update(dt, rig.camera.position);
         spray.update(dt, rig.camera.position);
-        const tVfx = performance.now();
 
         scene.render();
         post.endFrame();
-        const tRender = performance.now();
-
-        mark("cpu character", tChar - tFrame);
-        mark("cpu spells", tSpells - tChar);
-        mark("cpu terrain", tTerrain - tSpells);
-        mark("cpu wake+spray", tVfx - tTerrain);
-        mark("cpu submit", tRender - tVfx);
-        mark("cpu total", tRender - tFrame);
-        stats.gpuMs = engine.getGPUFrameTimeCounter().lastSecAverage / 1e6;
-
-        endFrameDraws();
-        stats.triangles =
-            (terrain.mesh.metadata ? terrain.mesh.metadata.triangles : 0) +
-            (S.showCharacter ? figure.triangles : 0) +
-            (wake.mesh.isVisible ? wake.mesh.metadata.triangles : 0) +
-            spells.triangles +
-            spray.liveCount * 2;
-
-        sample(dtMs);
-        checkSpike(dtMs);
-        overlay.update(dtMs, engine);
 
         endFrame();
     });
 
     await loading.done();
-    setTimeout(() => overlay.resetSpikes(), 800);
 
-    globalThis.SNOWFLOW = {
-        engine, scene, rig, character, figure, contact, spray, wake, spells,
-        overlay, terrain, sky, shadows, post, depthPass,
-        S, input, perfStats: stats,
+    globalThis.DUNES = {
+        engine, scene, rig, character, figure, contact, spray, pedestals,
+        terrain, sky, shadows, post, depthPass,
+        S, input,
     };
 }
 

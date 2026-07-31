@@ -253,9 +253,9 @@ export class Sky {
         // Lambertian re-emission: L = albedo * E / PI.
         const k = 1 / Math.PI;
         this.groundBounce.set(
-            SNOW_ALBEDO[0] * er * k,
-            SNOW_ALBEDO[1] * eg * k,
-            SNOW_ALBEDO[2] * eb * k
+            SAND_ALBEDO[0] * er * k,
+            SAND_ALBEDO[1] * eg * k,
+            SAND_ALBEDO[2] * eb * k
         );
     }
 
@@ -383,5 +383,5 @@ const _shBasis = new Float32Array(9);
 const _irrTmp = new Float32Array(3);
 const _wind = new Vector2(0, 1);
 
-/** Fresh snow reflects most of what hits it, slightly more at the blue end. */
-const SNOW_ALBEDO = [0.83, 0.86, 0.91];
+/** Dry sand bounces back about half of what fresh snow does, and warmer. */
+const SAND_ALBEDO = [0.78, 0.62, 0.42];

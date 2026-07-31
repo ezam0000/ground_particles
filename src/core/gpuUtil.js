@@ -22,7 +22,7 @@ export function whenReady(obj, label, args) {
         const t0 = performance.now();
         const a = args || [];
         const tick = () => {
-            let ok = false;
+            let ok;
             try {
                 ok = obj.isReady.apply(obj, a);
             } catch (e) {

@@ -61,6 +61,14 @@ uniform refillRate: f32;
 uniform maxDepth: f32;
 uniform maxBerm: f32;
 uniform windAngle: f32;
+/// Env-profile rate scales. Snow = 1; sand raises berm collapse and lowers
+/// print decay / wind fill so sand does not read as sped-up snow.
+uniform slumpMul: f32;
+uniform bermDiffMul: f32;
+uniform depDiffMul: f32;
+uniform depDecayMul: f32;
+uniform bermDecayMul: f32;
+uniform windInfillMul: f32;
 
 /// Recover the world position a texel stands for.
 ///
@@ -116,8 +124,8 @@ fn main(input: FragmentInputs) -> FragmentOutputs {
         // berm channel gets three times the depression's rate. That difference is
         // what makes a trail soften from its edges inward.
         let k = clamp(uniforms.refillRate * dt, 0.0, 1.0);
-        let kDep = min(0.22, 0.004 * k);
-        let kBerm = min(0.22, 0.012 * k);
+        let kDep = min(0.22, 0.004 * k * uniforms.depDiffMul);
+        let kBerm = min(0.22, 0.012 * k * uniforms.bermDiffMul);
 
         let lapDep = (xl.r + xr.r + zd.r + zu.r) - 4.0 * dep;
         let lapBerm = (xl.g + xr.g + zd.g + zu.g) - 4.0 * berm;
@@ -128,11 +136,12 @@ fn main(input: FragmentInputs) -> FragmentOutputs {
         // Drift blows into the trench from upwind, so pull a little of the
         // upwind neighbour's state across. Asymmetric on purpose: a trail
         // filling evenly from both sides looks like a blur, filling from one
-        // side looks like weather.
+        // side looks like weather. Sand dials this down (windInfillMul) —
+        // dry grains saltate along the surface rather than soft-fill like snow.
         let wdir = vec2f(sin(uniforms.windAngle), cos(uniforms.windAngle));
         let upwind = uv - wdir * (t * 1.6);
         let uw = textureSampleLevel(prevTex, prevTexSampler, upwind, 0.0);
-        let kAdv = min(0.2, 0.002 * k);
+        let kAdv = min(0.2, 0.002 * k * uniforms.windInfillMul);
         dep = mix(dep, uw.r, kAdv * 0.6);
         berm = mix(berm, uw.g, kAdv);
 
@@ -141,8 +150,11 @@ fn main(input: FragmentInputs) -> FragmentOutputs {
         // keeps it mass-conserving and means an isolated berm with no adjacent
         // depression does not evaporate — it has to diffuse away instead.
         //
-        // Per second, like the diffusion above.
-        let slump = min(berm, dep) * min(0.6, 0.002 * uniforms.refillRate * dt);
+        // Per second, like the diffusion above. Sand raises slumpMul so berms
+        // avalanche back into the trench — the footprint visibly caves in —
+        // while depDecayMul/depDiffMul let the floor heal afterwards.
+        let slump = min(berm, dep)
+            * min(0.6, 0.002 * uniforms.refillRate * dt * uniforms.slumpMul);
         dep -= slump;
         berm -= slump;
 
@@ -168,8 +180,8 @@ fn main(input: FragmentInputs) -> FragmentOutputs {
         // multiply two ULPs clear of the noise floor, and the constants below now
         // mean what they say.
         let r = uniforms.refillRate;
-        dep *= exp(-dt * r / 400.0);
-        berm *= exp(-dt * r / 250.0);
+        dep *= exp(-dt * r * uniforms.depDecayMul / 400.0);
+        berm *= exp(-dt * r * uniforms.bermDecayMul / 250.0);
         comp *= exp(-dt * r / 300.0);
         // Ice is the one thing here that is meant to feel permanent within a
         // session — a spell that "permanently alters the surface" should not
