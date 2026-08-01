@@ -43,7 +43,8 @@ const TARGET_HEIGHT = 2.2;
 const CARD_RANGE = 3.8;
 const INSPECT_RANGE = 5.2;
 const CHAR_RADIUS = 0.45;
-const COLLIDE_RADIUS = 0.85;
+/** Shaft collision — must leave a walkable gap on the project arc (~2.15m centres). */
+const COLLIDE_RADIUS = 0.38;
 
 const PLAZAS = {
     school: {

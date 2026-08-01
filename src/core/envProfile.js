@@ -83,24 +83,21 @@ const SAND = {
     glintGrazing: 0.35,
     // Keep master refill near 1 — sand uses the per-term muls below instead.
     refillMul: 1.0,
-    contactScale: 0.45,
-    bermScale: 1.35,
-    compressionScale: 1.2,
-    rimRoughness: 0.55,
-    // Collapse rates at refillRate = 1. Desert-dry: nothing holds.
-    //   slump    0.23/s of min(berm, dep) — the berm avalanches back into the
-    //            hole with a half-life of ~3 s. This is the collapse you see.
-    //   bermDiff berm rim crumbles at the per-step stability sweet spot.
-    //   depDiff  walls cave in over ~5 s — the angle-of-repose term.
-    //   depDecay floor τ = 8 s — a print is gone in a quarter minute.
-    //   bermDecay berm τ ≈ 8 s.
-    //   windInfill saltation fill from upwind, well past snow's rate.
-    slumpMul: 115.0,
-    bermDiffMul: 30.0,
-    depDiffMul: 25.0,
-    depDecayMul: 50.0,
-    bermDecayMul: 30.0,
-    windInfillMul: 6.0,
+    contactScale: 0.55,
+    bermScale: 1.4,
+    compressionScale: 1.15,
+    rimRoughness: 0.5,
+    // Collapse rates at refillRate = 1. Desert-dry: prints cave in fast.
+    //   slump      berm avalanches into the hole (half-life ~1 s).
+    //   depDecay   floor τ ≈ 1.2 s — a print is gone in a few seconds.
+    //   bermDecay  berm τ ≈ 1.4 s.
+    //   windInfill saltation fill from upwind.
+    slumpMul: 420.0,
+    bermDiffMul: 55.0,
+    depDiffMul: 50.0,
+    depDecayMul: 340.0,
+    bermDecayMul: 280.0,
+    windInfillMul: 14.0,
     sprayKickScale: 0.55,
     iceScale: 0.0,
     exposure: 0.14,

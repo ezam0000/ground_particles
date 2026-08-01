@@ -28,6 +28,7 @@ import { Terrain } from "./terrain/terrain.js";
 import { DepthPass } from "./render/depthPass.js";
 import { PostChain } from "./post/postChain.js";
 import { Pedestals } from "./portfolio/pedestals.js";
+import { Giant } from "./props/giant.js";
 import { updateEnv, getLerped } from "./core/envProfile.js";
 import { whenReady } from "./core/gpuUtil.js";
 import * as loading from "./core/loading.js";
@@ -140,8 +141,9 @@ async function boot() {
 
     await loading.phase("planting monoliths", 0.62);
 
-    // Three plazas: education, experience, projects — authored GLB pillars.
+    // Three plazas + the colossus south of spawn.
     const pedestals = new Pedestals(scene, terrain, sky, shadows, depthPass, lights);
+    const giant = new Giant(scene, terrain, sky, shadows, depthPass, lights);
 
     // The rig needs ground heights to keep the spring arm above the sand.
     rig.groundAt = (x, z) => terrain.heightAt(x, z);
@@ -164,6 +166,8 @@ async function boot() {
     await spray.warmUp();
     pedestals.update(character.position, rig.camera.position, getLerped());
     await pedestals.warmUp();
+    giant.update(0, rig.camera.position, getLerped());
+    await giant.warmUp();
     await whenReady(sky.material, "sky material", [sky.mesh, false]);
     await depthPass.warmUp();
     post.update(0, rig.distance);
@@ -198,6 +202,7 @@ async function boot() {
         pedestals.pollInspect(rig, character.position);
         character.update(dt, rig);
         pedestals.resolveCollision(character.position);
+        giant.resolveCollision(character.position);
         terrain.heightfield.clampToPlayArea(character.position);
         // Pose and simulate before the contact pass: the footprints are stamped
         // at the boot's actual planted position, which only exists once the
@@ -220,6 +225,7 @@ async function boot() {
         // cascade matrices; before the terrain, so the brushes are in the
         // staging array when the simulation pass runs.
         pedestals.update(character.position, rig.camera.position, getLerped());
+        giant.update(dt, rig.camera.position, getLerped());
         // Pedestals just refilled the light pool — push it into the rest of the scene.
         for (const m of [terrain.material, figure.bodyMat, figure.clothMat, spray.material]) {
             lights.apply(m);
@@ -239,7 +245,7 @@ async function boot() {
     await loading.done();
 
     globalThis.DUNES = {
-        engine, scene, rig, character, figure, contact, spray, pedestals,
+        engine, scene, rig, character, figure, contact, spray, pedestals, giant,
         terrain, sky, shadows, post, depthPass,
         S, input,
     };

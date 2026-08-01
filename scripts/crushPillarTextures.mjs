@@ -1,10 +1,11 @@
 /**
- * Crush odyssey pillar GLBs for web delivery.
+ * Crush odyssey GLB textures for web delivery.
  *
- * Runtime only samples base color (prop shader). Drop the other maps and
- * downscale / re-JPEG the albedo hard.
+ * Runtime prop shading only samples base color. Drop extra maps and
+ * downscale / re-JPEG the albedo hard. Skins + animations are preserved.
  *
  *   node scripts/crushPillarTextures.mjs
+ *   node scripts/crushPillarTextures.mjs giant.glb
  */
 
 import { readFileSync, writeFileSync, mkdtempSync, rmSync, readdirSync } from "node:fs";
@@ -63,8 +64,21 @@ function writeGlb(json, bin) {
     return out;
 }
 
-function crushJpeg(bytes, workDir, tag) {
-    const inn = join(workDir, `${tag}-in.jpg`);
+/** Pick the albedo image: material baseColor → named base_color → first. */
+function pickAlbedoImage(json) {
+    const images = json.images || [];
+    for (const mat of json.materials || []) {
+        const texIdx = mat.pbrMetallicRoughness?.baseColorTexture?.index;
+        if (texIdx == null) continue;
+        const src = json.textures?.[texIdx]?.source;
+        if (src != null && images[src]) return images[src];
+    }
+    return images.find((im) => im.name === "base_color") || images[0] || null;
+}
+
+function crushImage(bytes, mime, workDir, tag) {
+    const ext = mime === "image/png" ? ".png" : ".jpg";
+    const inn = join(workDir, `${tag}-in${ext}`);
     const out = join(workDir, `${tag}-out.jpg`);
     writeFileSync(inn, bytes);
     execFileSync("ffmpeg", [
@@ -84,9 +98,7 @@ function crushFile(file) {
 
     const work = mkdtempSync(join(tmpdir(), "pillar-crush-"));
     try {
-        // Prefer base_color; fall back to first image.
-        let baseImg = (json.images || []).find((im) => im.name === "base_color");
-        if (!baseImg) baseImg = (json.images || [])[0];
+        const baseImg = pickAlbedoImage(json);
         if (!baseImg || baseImg.bufferView == null) {
             console.warn("skip (no image):", file);
             return;
@@ -94,10 +106,10 @@ function crushFile(file) {
 
         const bv = json.bufferViews[baseImg.bufferView];
         const raw = bin.subarray(bv.byteOffset || 0, (bv.byteOffset || 0) + bv.byteLength);
-        const crushed = crushJpeg(raw, work, file.replace(/\.glb$/, ""));
+        const crushed = crushImage(
+            raw, baseImg.mimeType || "image/jpeg", work, file.replace(/\.glb$/, "")
+        );
 
-        // Keep only geometry bufferViews + one albedo image view.
-        // Geometry views are those referenced by accessors (and their sparse, if any).
         const keepView = new Set();
         for (const acc of json.accessors || []) {
             if (acc.bufferView != null) keepView.add(acc.bufferView);
@@ -117,19 +129,23 @@ function crushFile(file) {
             const aligned = pad4(offset);
             if (aligned > offset) parts.push(Buffer.alloc(aligned - offset));
             offset = aligned;
-            remap.set(idx, { newIndex: remap.size, byteOffset: offset, byteLength: slice.length, byteStride: v.byteStride, target: v.target });
+            remap.set(idx, {
+                newIndex: remap.size,
+                byteOffset: offset,
+                byteLength: slice.length,
+                byteStride: v.byteStride,
+                target: v.target,
+            });
             parts.push(slice);
             offset += slice.length;
         }
 
-        // Albedo image at end.
         const imgAligned = pad4(offset);
         if (imgAligned > offset) parts.push(Buffer.alloc(imgAligned - offset));
         offset = imgAligned;
         const imgViewIndex = remap.size;
         parts.push(crushed);
         const imgByteOffset = offset;
-        offset += crushed.length;
 
         const newBin = Buffer.concat(parts);
         const newViews = [];
@@ -149,7 +165,6 @@ function crushFile(file) {
             byteLength: crushed.length,
         });
 
-        // Remap accessor bufferView indices.
         for (const acc of json.accessors || []) {
             if (acc.bufferView != null) acc.bufferView = remap.get(acc.bufferView).newIndex;
             if (acc.sparse?.indices?.bufferView != null) {
@@ -164,17 +179,21 @@ function crushFile(file) {
         json.buffers = [{ byteLength: newBin.length }];
         json.images = [{ name: "base_color", mimeType: "image/jpeg", bufferView: imgViewIndex }];
         json.textures = [{ sampler: 0, source: 0 }];
-        json.samplers = json.samplers?.length ? [json.samplers[0]] : [{ magFilter: 9729, minFilter: 9987 }];
+        json.samplers = json.samplers?.length
+            ? [json.samplers[0]]
+            : [{ magFilter: 9729, minFilter: 9987 }];
 
         for (const mat of json.materials || []) {
             delete mat.emissiveTexture;
             delete mat.normalTexture;
             delete mat.occlusionTexture;
             delete mat.emissiveFactor;
+            delete mat.extensions;
+            mat.alphaMode = "OPAQUE";
             mat.pbrMetallicRoughness = {
                 baseColorTexture: { index: 0 },
                 metallicFactor: 0,
-                roughnessFactor: 0.7,
+                roughnessFactor: 0.75,
             };
         }
 
@@ -190,13 +209,18 @@ function crushFile(file) {
     }
 }
 
-const files = readdirSync(DIR).filter((f) => f.endsWith(".glb")).sort();
+const only = process.argv.slice(2).filter((a) => a.endsWith(".glb"));
+const files = only.length
+    ? only
+    : readdirSync(DIR).filter((f) => f.endsWith(".glb")).sort();
 
 let before = 0, after = 0;
 for (const f of files) {
     const r = crushFile(f);
     if (r) { before += r.before; after += r.after; }
 }
-console.log(
-    `\nTOTAL  ${(before / 1e6).toFixed(1)}MB → ${(after / 1e6).toFixed(1)}MB  (−${((1 - after / before) * 100).toFixed(0)}%)`
-);
+if (before) {
+    console.log(
+        `\nTOTAL  ${(before / 1e6).toFixed(1)}MB → ${(after / 1e6).toFixed(1)}MB  (−${((1 - after / before) * 100).toFixed(0)}%)`
+    );
+}
