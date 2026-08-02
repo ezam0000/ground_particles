@@ -9,25 +9,31 @@ alwaysApply: false
 ## Style
 
 - ESM (`"type": "module"`). Plain JS with JSDoc `@param` / `@type` — no TypeScript.
-- File header comment stating what the module owns and any load-bearing order.
-- Import Babylon from deep paths (`@babylonjs/core/...`), not the barrel package.
-- Classes own construction + `update(dt, …)` + optional `async warmUp()` / `setVisible` / `registerPrepass`.
+- File header stating what the module owns and any load-bearing order.
+- Import Babylon from deep paths (`@babylonjs/core/...`), not the barrel.
+- Classes own construction + `update(dt, …)` + optional `async warmUp()` / `setVisible`.
 
 ## Settings
 
-- Tunables live on flat `S` in `core/settings.js` (read every frame; no proxies).
-- Overlay widgets come from `SCHEMA` (`t: "f"|"b"|"e"`). Add both `S` key and SCHEMA entry together.
-- Use `onChange(key, fn)` only when an edit needs rebuild work; otherwise sample `S` next frame.
-- Writes go through `set(k, v)` — never from the render loop.
+- Tunables on flat `S` in `core/settings.js`. Overlay widgets from `SCHEMA` (`t: "f"|"b"|"e"`).
+- `onChange(key, fn)` only when rebuild is needed; otherwise sample `S` next frame.
+- Writes via `set(k, v)` — never from the render loop.
 
 ## GPU / materials
 
 - `ShaderLanguage.WGSL` on every `ShaderMaterial` / `ProceduralTexture`.
-- Shader names must match `shaders/registry.js` (`snow`, `wake`, `water`, … → `*VertexShader` / `*PixelShader`).
-- Prefer `bindMatrixArray` over `setMatrices` for per-frame cascade uploads (avoids GC).
-- Shadow casters register their **actual** depth vertex program via `ShadowSystem.registerCaster` — Babylon's stock cascades cannot see procedural geometry.
-- Opaque casters that feed post also `registerPrepass` on `DepthPass`.
+- Shader names must match `shaders/registry.js` (`prop`, `snow`, `staticDepth`, …).
+- Prefer `bindMatrixArray` over `setMatrices` for cascade uploads (avoids GC).
+- Opaque casters: `ShadowSystem.registerCaster` with the real depth vertex program; also `DepthPass.registerCaster` for post.
 
-## Frame wiring
+## Frame wiring (`main.js`)
 
-Call order in `main.js` is intentional (contact after figure pose; spells before `terrain.update` so brushes land; wake before spray upload). Preserve or update comments when changing order.
+Order is intentional — preserve or update comments when changing it:
+
+```
+pollInput → character.update → pedestal/giant collision → contact
+→ camera → post/sky/shadows → pedestals → giant → (didHit → applyHit/playHit)
+→ avatar → terrain → spray → render → endFrame
+```
+
+Input edges (`jumpPressed`, `emotePressed`, `openPressed`) clear in `endFrame()`.

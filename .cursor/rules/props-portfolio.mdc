@@ -1,0 +1,31 @@
+---
+description: Authored GLB props — pillars, giant patrol/hits, crush conventions
+globs: src/props/**/*.js,src/portfolio/**/*.js
+alwaysApply: false
+---
+
+# Props / portfolio
+
+## Pattern (avatar + giant + pillars)
+
+- Load GLB → CPU skin if skinned → bind **`prop`** material (albedo) → register shadow/prepass with **static** depth shaders.
+- Drive in-place clips by moving the root; sample `terrain.heightAt` / `normalAt`; damp tilt (no per-frame snap).
+
+## Pedestals
+
+- Data from `portfolio/projects.json` (+ sync script). Collision = XZ circle push (`COLLIDE_RADIUS`).
+- Approach shows card; **E** opens link; **I** inspects (freezes character via `input.inspecting`).
+- Key lights go through `SpellLights` — do not invent a second light pool.
+
+## Giant
+
+- Patrol waypoints; proximity starts attack clips; **move-lock** while `_attacking`.
+- Hits are **timed**, not clip-end and not `ATTACK_RANGE`:
+  - `HIT_DELAY` / `HIT_WINDOW` / `HIT_RADIUS` (~3m)
+  - one-frame `didHit`; `main.js` calls `character.applyHit` + `avatar.playHit`
+- Foot stamps from stride distance matched to walk clip period; no continuous stance drag.
+
+## Assets
+
+- Models under `public/assets/odyssey/models/`. Crush before commit.
+- Prefer albedo-only crushed GLBs; do not reintroduce multi-map PBR on props without a shader plan.

@@ -1,38 +1,43 @@
 ---
-description: SNOWFLOW architecture, hard constraints, and domain layout
+description: Portfolio dunes architecture, hard constraints, and domain layout
 alwaysApply: true
 ---
 
-# SNOWFLOW
+# Portfolio dunes (SNOWFLOW engine)
 
-Real-time procedural snow demo. **WebGPU only** (Babylon.js + hand-written WGSL). No WebGL fallback. No third-party textures, meshes, HDRIs, or animation clips — everything is generated on the GPU at load (or lofted from numeric tables).
+Walkable sand portfolio on WebGPU (Babylon.js + hand-written WGSL). **No WebGL fallback.** Sand-only in product mode: no surf, no castable spells. Authored GLB props + procedural terrain/deform/sky.
 
 ## Layout
 
 ```
 src/main.js          entry + frame orchestration (order is load-bearing)
-src/core/            settings, input, camera, perf, loading, gpuUtil
+src/core/            settings, input, camera, loading, gpuUtil, envProfile
 src/terrain/         heightfield, clipmap, deformation state buffer
 src/render/          sky/IBL, shadow cascades, depth prepass
-src/character/       skeleton, procedural mesh, cloth, snow contact
-src/vfx/             spray particles, surf wake
-src/spells/          five spells, shared water body, light pool
+src/character/       controller, PlayerAvatar (GLB), snowContact
+src/props/           Giant (patrol + timed hits)
+src/portfolio/       pedestals, cards, projects.json
+src/vfx/             spray particles
+src/spells/          SpellLights pool only (pedestal key lights)
 src/post/            TAA, bloom, shafts, DoF, SSR, tonemap
-src/ui/              F1 settings / perf overlay
-src/shaders/         WGSL sources; lib/ = shared #includes
+src/shaders/         WGSL; lib/ = shared #includes
 ```
+
+Legacy procedural figure/cloth modules may still exist under `character/` but are **unwired** — live path is `controller` + `avatar` + `snowContact(..., null, spray)`.
 
 ## Hard constraints
 
-- **No allocation in the render loop.** Pre-size buffers/typed arrays at construction; write in place. Module-scope scratch (`_vel`, `_aim`) is the pattern — never `new` per frame.
-- **Warm up behind the loading screen.** Every material / procedural texture / pipeline must `warmUp()` / `whenReady()` before the first interactive frame. A first cast must not compile mid-frame.
-- **Keep systems modular.** New features go in their domain folder. Do not dump logic into `main.js` or grow unrelated modules. Wire in `main.js` only for construction order and per-frame call order.
-- **Shared snow state.** Feet, wake, and spells all write deformation through `DeformationField.brush()`. Lit surfaces read the same spell light pool (`SpellLights` / `#include<snowSpellLights>`).
-- **Rendering groups:** 0 = sky, 1 = opaque scene, 2 = alpha (water, spray). Depth auto-clear between groups is disabled on purpose.
-- Prefer lean, readable changes. Do not add fallbacks, catch-alls, or speculative branches.
+- **No allocation in the render loop.** Pre-size buffers/typed arrays; module-scope scratch (`_vel`). Never `new` per frame.
+- **Warm up behind the loading screen.** Materials / pipelines `warmUp()` / `whenReady()` before first interactive frame.
+- **Keep systems modular.** New features go in their domain folder. Wire in `main.js` only for construction + per-frame order.
+- **Shared sand state.** Feet + props write deform via `DeformationField.brush()`. Lit props/terrain read `SpellLights` / `#include<snowSpellLights>`.
+- **Rendering groups:** 0 = sky, 1 = opaque, 2 = alpha (spray). Depth auto-clear between groups is off on purpose.
+- Prefer lean changes. No fallbacks, catch-alls, or speculative branches.
+- **No physics engine.** Kinematic controller + circle push-outs + timed hit windows.
 
 ## Run
 
 ```bash
 npm install && npm run dev   # http://localhost:5173
+npm run check
 ```

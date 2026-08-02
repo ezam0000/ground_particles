@@ -1,6 +1,6 @@
 ---
 description: WGSL registration, includes, and shading conventions
-globs: src/shaders/**/*.wgsl
+globs: src/shaders/**/*.{wgsl,js}
 alwaysApply: false
 ---
 
@@ -9,28 +9,30 @@ alwaysApply: false
 ## Registration
 
 - Import new sources in `src/shaders/registry.js` with `?raw`.
-- Shared libs → `ShaderStore.IncludesShadersStoreWGSL` under `snow*` keys; pull in with `#include<snowFoo>`.
-- Full stages → `ShaderStore.ShadersStoreWGSL` as `<name>VertexShader` / `<name>PixelShader` (Babylon WGSL naming).
-- Call `registerShaders()` once before any material is built (done in `main.js`).
+- Shared libs → `IncludesShadersStoreWGSL` under `snow*` keys; `#include<snowFoo>`.
+- Full stages → `ShadersStoreWGSL` as `<name>VertexShader` / `<name>PixelShader`.
+- Call `registerShaders()` once before any material is built (`main.js`).
 
 ## Shared includes (`lib/`)
 
 | Include | Role |
 |---------|------|
-| `snowNoise` / `snowTerrain` | height / landform (bake + runtime must stay identical) |
+| `snowNoise` / `snowTerrain` | height / landform (bake + runtime identical) |
 | `snowDeform` | deformation buffer sample / displace |
 | `snowShading` | BRDF, SSS, glints, shadow filter |
 | `snowShadowLookup` | cascade PCSS |
-| `snowAtmosphere` | fog / aerial / sky LUT lookups |
+| `snowAtmosphere` | fog / aerial / sky LUT |
 | `snowClipmap` | clipmap vertex placement |
-| `snowCharSkin` / `snowWake` / `snowWater` / `snowCrystal` | domain geometry |
-| `snowSpellLights` | four-slot dynamic light pool |
+| `snowSpellLights` | dynamic light pool (pedestal keys) |
 | `snowPostCommon` | post helpers |
+| `snowCharSkin` | legacy procedural figure (unwired) |
 
-Bake passes and beauty passes that share landform logic must `#include` the same lib text — do not duplicate formulas in JS or a second WGSL copy.
+Authored props use **`prop`** + **`staticDepth`** / **`staticPrepass`** (no skinning in WGSL — CPU-posed positions).
+
+Bake and beauty passes that share landform math must `#include` the same lib — do not duplicate formulas.
 
 ## Conventions
 
-- Prefer explanatory header comments for non-obvious math (order of normal combination, sign of light vectors, etc.).
-- Match existing uniform/texture naming on sibling materials so CPU upload paths stay consistent.
-- Depth / prepass variants reuse the beauty vertex placement includes where possible; only diverge for discard/alpha cases (e.g. wake prepass).
+- Header comments for non-obvious math (normal combine order, light vector signs).
+- Match sibling uniform/texture names so CPU upload paths stay consistent.
+- Depth / prepass reuse beauty placement includes where possible.

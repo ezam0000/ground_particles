@@ -1,30 +1,40 @@
 ---
-description: Current asset policy and how to extend when adding custom media
+description: Authored asset layout, crush/merge pipeline, and gitignore allowances
 alwaysApply: true
 ---
 
 # Assets
 
-Runtime look is mostly procedural. Authored environment detail maps are additive.
+Runtime is procedural terrain + authored GLBs/media. Binaries live under `public/assets/…` (Vite-served).
 
 ## Layout
 
 ```
-public/assets/environments/snow/detail.png   # optional 1024² RGBA
-public/assets/environments/sand/detail.png
+public/assets/environments/{snow,sand}/detail.png   # optional RGBA detail
+public/assets/character/main_man.glb                # player skin + anims
+public/assets/odyssey/models/*.glb                  # pillars, giant
+public/assets/portfolio/*                           # card thumbs / gifs
 ```
 
-Channels (match `detailBake`): RG = tangent normal XY (`n*0.5+0.5`), B = cavity, A = height. Missing file → procedural bake for that side.
+Env detail channels (match `detailBake`): RG = tangent normal XY (`n*0.5+0.5`), B = cavity, A = height. Missing → procedural bake for that side.
 
 ## Environments
 
-- `S.environment` is the target (`snow` | `sand`).
-- `envProfile.js` eases `envBlend` 0→1; systems call `getLerped()` — do not hard-swap mid-frame or clear the deform buffer.
-- Higgsfield: generate height-source tiles, pack to RGBA in sandbox; do not prompt for packed normal maps directly.
-- Do not rewrite spray particles for env switches — only tint/scale via profile.
+- `S.environment` is the target (`snow` | `sand`); product default is sand.
+- `envProfile.js` eases `envBlend`; systems call `getLerped()` — do not hard-swap mid-frame or clear the deform buffer.
+- Do not rewrite spray for env switches — only tint/scale via profile.
+
+## GLB pipeline
+
+- Prop/player shading samples **albedo only**. Crush with `node scripts/crushPillarTextures.mjs <path.glb>` (512 JPEG, drop extra maps; skins/anims kept).
+- New Meshy clips: merge animation accessors into the target GLB by **shared node indices** (same skeleton), then re-crush. Do not ship full withSkin duplicates per clip.
+- CPU-skin skinned props (`computeBonesUsingShaders = false`) so `prop` / `staticDepth` / `staticPrepass` stay rigid shaders.
+
+## Git
+
+`.gitignore` allows env/character/portfolio/odyssey media via `!public/assets/...` exceptions. Keep large sources out of git until crushed.
 
 ## Rules
 
-- Keep binaries under `public/assets/…`; Vite serves them. `.gitignore` allows env PNGs only.
-- Load behind loading phases; modular loaders next to the consumer — not in `main.js`.
-- Prefer authored when present; do not run bake and authored for the same slot.
+- Load behind loading phases; loaders next to the consumer — not dumped into `main.js`.
+- Prefer authored when present; do not bake and authored for the same slot.
