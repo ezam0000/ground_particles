@@ -37,30 +37,20 @@ export class SnowContact {
         this.spray = spray || null;
         this.figure = figure || null;
 
-        /** Distance travelled since the last continuous splat, metres. */
-        this._sinceSplat = 0;
-        this._prevX = character.position.x;
-        this._prevZ = character.position.z;
-
         /** @type {ReturnType<typeof getLerped>|null} */
         this._env = null;
     }
 
-    /** @param {number} dt seconds */
-    update(dt) {
+    /** @param {number} _dt seconds */
+    update(_dt) {
         const ch = this.character;
         const f = this.field;
         const env = getLerped();
         this._env = env;
 
-        const dx = ch.position.x - this._prevX;
-        const dz = ch.position.z - this._prevZ;
-        const moved = Math.hypot(dx, dz);
-        this._prevX = ch.position.x;
-        this._prevZ = ch.position.z;
-
         // Nothing touches the ground while the character is above it.
-        if (!ch.airborne) this._walk(dt, moved);
+        // Foot-only stamps (no continuous pelvis drag — that read as skating).
+        if (ch.airborne) return;
 
         // Touchdowns — the figure fires one for each foot as it plants, and the
         // first plant after a jump is a landing by construction (see
@@ -80,16 +70,16 @@ export class SnowContact {
 
             const impact = Math.min(
                 1.6,
-                0.35 + ch.speed / 5.4 + (ch.landed ? ch.fallSpeed * 0.18 : 0)
+                0.4 + ch.speed / 5.4 + (ch.landed ? ch.fallSpeed * 0.18 : 0)
             );
             const cs = env.contactScale;
             const bs = env.bermScale;
             f.brush(
                 px, pz,
                 BOOT_WIDTH,
-                (0.17 + 0.14 * impact) * cs,
-                (0.10 + 0.08 * impact) * cs * bs,
-                Math.min(1, 0.9 * env.compressionScale),
+                (0.20 + 0.16 * impact) * cs,
+                (0.12 + 0.09 * impact) * cs * bs,
+                Math.min(1, 0.95 * env.compressionScale),
                 0,
                 ch.facing,
                 BOOT_ELONG,
@@ -138,26 +128,5 @@ export class SnowContact {
                 clod
             );
         }
-    }
-
-    _walk(dt, moved) {
-        const ch = this.character;
-        if (ch.speed < 0.25) return;
-
-        const env = this._env;
-        const k = Math.min(moved, 0.35);
-        const cs = env.contactScale;
-        const bs = env.bermScale;
-        this.field.brush(
-            ch.position.x, ch.position.z,
-            0.22,
-            0.20 * k * cs,
-            0.22 * k * cs * bs,
-            Math.min(1, 0.8 * k * env.compressionScale),
-            0,
-            ch.facing,
-            1.5,
-            0.85 * env.rimRoughness
-        );
     }
 }

@@ -220,6 +220,10 @@ async function boot() {
         // staging array when the simulation pass runs.
         pedestals.update(character.position, rig.camera.position, getLerped());
         giant.update(dt, character.position, rig.camera.position, getLerped());
+        if (giant.didHit) {
+            character.applyHit(giant.x, giant.z);
+            avatar.playHit();
+        }
         avatar.update(dt, rig.camera.position, getLerped());
         // Pedestals just refilled the light pool — push it into the rest of the scene.
         for (const m of [terrain.material, spray.material]) {

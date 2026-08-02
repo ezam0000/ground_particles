@@ -17,6 +17,7 @@ import { Vector3, Vector4, Color3, Quaternion } from "@babylonjs/core/Maths/math
 import { S } from "../core/settings.js";
 import { bindMatrixArray, whenReady } from "../core/gpuUtil.js";
 import { SPELL_LIGHT_UNIFORMS } from "../spells/spellLights.js";
+import { input } from "../core/input.js";
 
 const MODEL = "/assets/character/main_man.glb";
 /** Match authored mesh (~1.82 m). */
@@ -24,9 +25,11 @@ const TARGET_HEIGHT = 1.82;
 /** Sprint / high-speed threshold for the Running clip. */
 const RUN_CLIP_SPEED = 3.6;
 /** Below this ground speed we treat the avatar as idle (Alert). */
-const IDLE_SPEED = 0.35;
+const IDLE_SPEED = 0.28;
 /** Wait this long after stopping before playing Alert. */
 const IDLE_DELAY = 0.25;
+/** Crossfade duration when swapping locomotion clips. */
+const BLEND_DUR = 0.16;
 
 const _splits = new Vector4();
 const _fill = new Color3(0.55, 0.48, 0.38);
@@ -67,10 +70,27 @@ export class PlayerAvatar {
         this._run = null;
         /** @type {import("@babylonjs/core/Animations/animationGroup").AnimationGroup|null} */
         this._idle = null;
+        /** @type {import("@babylonjs/core/Animations/animationGroup").AnimationGroup|null} */
+        this._fall = null;
+        /** @type {import("@babylonjs/core/Animations/animationGroup").AnimationGroup|null} */
+        this._getUp = null;
+        /** @type {import("@babylonjs/core/Animations/animationGroup").AnimationGroup[]} */
+        this._emotes = [];
+        this._emoteI = 0;
         this._active = null;
+        /** Clip fading out during a crossfade (null when idle). */
+        this._fadeOut = null;
+        this._blendT = 1;
+        /**
+         * 'hit' | 'emote' | null — locomotion sync is suspended while set.
+         * Hit cannot be cancelled; emote cancels on move/jump.
+         */
+        this._busy = null;
         this._visible = true;
         /** Seconds spent below IDLE_SPEED on the ground. */
         this._stillT = 0;
+        /** Last gait phase written into a locomotion clip (for sync). */
+        this._syncedPhase = -1;
 
         this._depthMats = [0, 1].map((c) => this._makeDepthMaterial(c));
         this._prepassMat = this._makePrepassMaterial();
@@ -121,30 +141,50 @@ export class PlayerAvatar {
         this._run = groups.find((g) => /run/i.test(g.name)) || null;
         this._idle =
             groups.find((g) => /alert|idle|rest/i.test(g.name)) || null;
+        this._fall =
+            groups.find((g) => /falling_down/i.test(g.name)) ||
+            groups.find((g) => /fall/i.test(g.name) && !/standup|stand_up|get.?up/i.test(g.name)) ||
+            null;
+        this._getUp =
+            groups.find((g) => /stand_up|standup|get.?up/i.test(g.name)) || null;
+        this._emotes = groups.filter((g) =>
+            /gangnam|emote|groove/i.test(g.name)
+        );
         if (!this._walk && groups[0]) this._walk = groups[0];
 
         // Initial state: alert at rest (basic game design).
         const start = this._idle || this._walk;
         if (start) {
             start.start(true, 1);
+            start.setWeightForAllAnimatables(1);
             this._active = start;
         }
 
         return root;
     }
 
-    _placeRoot() {
+    _placeRoot(dt = 1 / 60) {
         const root = this._root;
         if (!root) return;
         const ch = this.controller;
         const x = ch.position.x;
         const z = ch.position.z;
         this.terrain.normalAt(x, z, _normal);
+        // Soften extreme tilt so the mesh doesn't snap on every ripple.
+        _normal.x *= 0.55;
+        _normal.z *= 0.55;
+        const nLen = Math.hypot(_normal.x, _normal.y, _normal.z) || 1;
+        _normal.x /= nLen;
+        _normal.y /= nLen;
+        _normal.z /= nLen;
         Quaternion.RotationAxisToRef(Vector3.UpReadOnly, ch.facing, _yawQ);
         Quaternion.FromUnitVectorsToRef(Vector3.UpReadOnly, _normal, _tiltQ);
         _tiltQ.multiplyToRef(_yawQ, _orient);
         if (!root.rotationQuaternion) root.rotationQuaternion = _orient.clone();
-        else root.rotationQuaternion.copyFrom(_orient);
+        else {
+            const k = 1 - Math.exp(-10 * Math.max(dt, 1 / 120));
+            Quaternion.SlerpToRef(root.rotationQuaternion, _orient, k, root.rotationQuaternion);
+        }
         root.position.set(x, ch.position.y, z);
     }
 
@@ -259,14 +299,34 @@ export class PlayerAvatar {
 
     /** Alert at rest when still; Walking / Running when moving. */
     _syncAnim(dt) {
+        if (this._busy) {
+            // Advance any leftover crossfade into the busy clip.
+            if (this._fadeOut && this._blendT < 1) {
+                this._blendT = Math.min(1, this._blendT + dt / BLEND_DUR);
+                const t = this._blendT;
+                if (this._active) this._active.setWeightForAllAnimatables(t);
+                this._fadeOut.setWeightForAllAnimatables(1 - t);
+                if (t >= 1) {
+                    this._fadeOut.stop();
+                    this._fadeOut = null;
+                }
+            }
+            return;
+        }
+
         const ch = this.controller;
         const moving = !ch.airborne && ch.speed > IDLE_SPEED;
         let want = null;
         let speed = 1;
 
         if (ch.airborne) {
-            // Hold the last locomotion pose in the air.
+            // Hold the last locomotion pose in the air (brief freeze).
             if (this._active) this._active.speedRatio = 0;
+            if (this._fadeOut) {
+                this._fadeOut.stop();
+                this._fadeOut = null;
+                this._blendT = 1;
+            }
             this._stillT = 0;
             return;
         }
@@ -275,14 +335,14 @@ export class PlayerAvatar {
             this._stillT = 0;
             if (ch.speed >= RUN_CLIP_SPEED && this._run) {
                 want = this._run;
-                speed = Math.min(1.35, 0.85 + ch.speed01 * 0.5);
+                // Cadence tracks travel so plants stay under the mesh.
+                speed = Math.min(1.4, 0.75 + ch.speed01 * 0.65);
             } else if (this._walk) {
                 want = this._walk;
-                speed = Math.min(1.25, 0.7 + ch.speed01 * 0.55);
+                speed = Math.min(1.3, 0.65 + ch.speed01 * 0.7);
             }
         } else {
             this._stillT += Math.max(dt, 0);
-            // After stopping: hold the last walk/run frame briefly, then Alert.
             if (this._stillT >= IDLE_DELAY && this._idle) {
                 want = this._idle;
                 speed = 1;
@@ -290,19 +350,161 @@ export class PlayerAvatar {
                 want = this._active;
                 speed = 0;
             } else if (this._idle) {
-                // Fresh load / never moved: Alert immediately.
                 want = this._idle;
                 speed = 1;
             }
         }
 
-        if (want !== this._active) {
-            if (this._active) this._active.stop();
-            this._active = want;
-            if (want) want.start(true, speed);
+        if (want && want !== this._active) {
+            this._crossfade(want, speed, ch);
         } else if (want) {
             want.speedRatio = speed;
+            // Keep full weight after any prior blend; never goToFrame mid-stride
+            // (that snapped every gait wrap and made walk/run look choppy).
+            if (this._blendT >= 1) want.setWeightForAllAnimatables(1);
         }
+
+        // Advance crossfade weights.
+        if (this._fadeOut && this._blendT < 1) {
+            this._blendT = Math.min(1, this._blendT + dt / BLEND_DUR);
+            const t = this._blendT;
+            if (this._active) this._active.setWeightForAllAnimatables(t);
+            this._fadeOut.setWeightForAllAnimatables(1 - t);
+            if (t >= 1) {
+                this._fadeOut.stop();
+                this._fadeOut = null;
+            }
+        }
+    }
+
+    /** Stop fade-out leftovers and clear end observers on a group. */
+    _clearBusyObservers(group) {
+        if (group) group.onAnimationGroupEndObservable.clear();
+    }
+
+    _endBusy() {
+        this._busy = null;
+        this.controller.locked = false;
+        this.controller._hitDecay = 0;
+        const idle = this._idle || this._walk;
+        if (idle) {
+            this._crossfade(idle, 1, this.controller);
+        }
+    }
+
+    /**
+     * Giant hit: play fall, then get-up, then unlock.
+     * Ignored if already in a hit sequence.
+     */
+    playHit() {
+        if (this._busy === "hit") return;
+        if (!this._fall) {
+            this.controller.locked = false;
+            return;
+        }
+        if (this._busy === "emote") {
+            this._clearBusyObservers(this._active);
+        }
+        this._busy = "hit";
+        this.controller.locked = true;
+        this._clearBusyObservers(this._fall);
+        this._clearBusyObservers(this._getUp);
+        this._fall.onAnimationGroupEndObservable.addOnce(() => {
+            if (this._busy !== "hit") return;
+            if (this._getUp) {
+                this._clearBusyObservers(this._getUp);
+                this._getUp.onAnimationGroupEndObservable.addOnce(() => {
+                    if (this._busy === "hit") this._endBusy();
+                });
+                this._crossfade(this._getUp, 1, this.controller);
+            } else {
+                this._endBusy();
+            }
+        });
+        this._crossfade(this._fall, 1, this.controller);
+    }
+
+    /** Cycle to the next emote and play it (locked until end or cancelled). */
+    playEmote() {
+        if (!this._emotes.length || this._busy === "hit") return;
+        if (this._busy === "emote") {
+            this._clearBusyObservers(this._active);
+        }
+        const clip = this._emotes[this._emoteI % this._emotes.length];
+        this._emoteI = (this._emoteI + 1) % this._emotes.length;
+        this._busy = "emote";
+        this.controller.locked = true;
+        this.controller.velocity.x = 0;
+        this.controller.velocity.z = 0;
+        this._clearBusyObservers(clip);
+        clip.onAnimationGroupEndObservable.addOnce(() => {
+            if (this._busy === "emote" && this._active === clip) this._endBusy();
+        });
+        this._crossfade(clip, 1, this.controller);
+    }
+
+    /** Cancel an emote early (move / jump). Hit sequences are not cancellable. */
+    _tryCancelEmote() {
+        if (this._busy !== "emote") return;
+        this._clearBusyObservers(this._active);
+        this._endBusy();
+    }
+
+    /**
+     * Soft clip swap — both groups play briefly with complementary weights.
+     * @param {import("@babylonjs/core/Animations/animationGroup").AnimationGroup} next
+     * @param {number} speed
+     * @param {import("./controller.js").CharacterController} ch
+     */
+    _crossfade(next, speed, ch) {
+        if (this._fadeOut) {
+            this._fadeOut.stop();
+            this._fadeOut = null;
+        }
+        const prev = this._active;
+        if (prev && prev !== next && prev.isPlaying) {
+            this._fadeOut = prev;
+            this._blendT = 0;
+            prev.setWeightForAllAnimatables(1);
+        } else {
+            if (prev && prev !== next) prev.stop();
+            this._blendT = 1;
+        }
+
+        const loop =
+            next === this._idle ||
+            next === this._walk ||
+            next === this._run;
+        if (!next.isPlaying) next.start(loop, speed);
+        else next.speedRatio = speed;
+        next.setWeightForAllAnimatables(this._blendT >= 1 ? 1 : 0);
+        this._active = next;
+
+        if (!loop) {
+            next.speedRatio = speed;
+        } else if (
+            (next === this._walk || next === this._run) &&
+            prev &&
+            (prev === this._walk || prev === this._run)
+        ) {
+            // Align only on walk↔run swaps — never every stride.
+            this._syncGaitPhase(next, ch.gaitPhase);
+        }
+    }
+
+    /**
+     * One-shot align of clip frame to controller gait (walk↔run only).
+     * @param {import("@babylonjs/core/Animations/animationGroup").AnimationGroup} group
+     * @param {number} phase 0..1
+     */
+    _syncGaitPhase(group, phase) {
+        const from = group.from;
+        const to = group.to;
+        const span = to - from;
+        if (span <= 0) return;
+        const p = ((phase % 1) + 1) % 1;
+        group.goToFrame(from + p * span);
+        this._syncedPhase = phase;
     }
 
     /**
@@ -313,8 +515,19 @@ export class PlayerAvatar {
     update(dt, cameraPos, env) {
         if (!this._mesh || !this._root) return;
 
+        // Emote cancel on locomotion intent (hit is uninterruptible).
+        if (
+            this._busy === "emote" &&
+            (input.moving || input.jumpPressed)
+        ) {
+            this._tryCancelEmote();
+        }
+        if (input.emotePressed && !this._busy && !this.controller.airborne && !input.inspecting) {
+            this.playEmote();
+        }
+
         this._syncAnim(dt);
-        this._placeRoot();
+        this._placeRoot(dt);
 
         const sky = this.sky;
         _splits.set(

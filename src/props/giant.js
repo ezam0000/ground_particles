@@ -17,6 +17,7 @@ import { S } from "../core/settings.js";
 import { bindMatrixArray, whenReady } from "../core/gpuUtil.js";
 import { getLerped } from "../core/envProfile.js";
 import { SPELL_LIGHT_UNIFORMS } from "../spells/spellLights.js";
+import { angleDamp } from "../character/controller.js";
 
 const MODEL = "/assets/odyssey/models/giant.glb";
 
@@ -35,11 +36,18 @@ const WALK_ANIM_SPEED = 1.0;
 const ATTACK_RANGE = 11;
 /** Minimum seconds between attacks. */
 const ATTACK_COOLDOWN = 3.2;
+/** Seconds after attack start before the hit box arms. */
+const HIT_DELAY = 0.55;
+/** Seconds the hit box stays live after HIT_DELAY. */
+const HIT_WINDOW = 0.22;
+/** Tight contact radius for landing a hit (not ATTACK_RANGE). */
+const HIT_RADIUS = 3.2;
 
 /** Foot print — larger than a human boot. */
 const FOOT_WIDTH = 0.16;
 const FOOT_ELONG = 1.55;
-const STRIDE = 0.62;
+/** Metres between plants; tuned so 2 plants ≈ one walk-clip cycle at WALK_SPEED. */
+const STRIDE = 0.68;
 const STANCE = 0.22;
 
 /** Patrol loop south of spawn (xz waypoints). */
@@ -94,10 +102,17 @@ export class Giant {
         this._anim = null;
         this._attacking = false;
         this._attackCd = 1.5;
+        this._hitT = 0;
+        this._hitLanded = false;
+        /** One-frame pulse when a swing connects with the player. */
+        this.didHit = false;
         this._sinceSplat = 0;
         this._foot = 0;
+        this._stride = STRIDE;
         this._prevX = PATROL[0].x;
         this._prevZ = PATROL[0].z;
+        /** Softened ground normal for damped body tilt. */
+        this._tiltN = new Vector3(0, 1, 0);
 
         this._depthMats = [0, 1].map((c) => this._makeDepthMaterial(c));
         this._prepassMat = this._makePrepassMaterial();
@@ -161,6 +176,14 @@ export class Giant {
         if (this._walk) {
             this._walk.start(true, WALK_ANIM_SPEED);
             this._anim = this._walk;
+            // Match plant spacing to clip period so stamps land with gait.
+            const span = Math.max(0.01, this._walk.to - this._walk.from);
+            const fps = this._walk.targetedAnimations[0]?.animation?.framePerSecond || 30;
+            const cycleSec = span / fps / WALK_ANIM_SPEED;
+            // Two plants per full walk cycle.
+            this._stride = Math.max(0.4, WALK_SPEED * cycleSec * 0.5);
+        } else {
+            this._stride = STRIDE;
         }
 
         return root;
@@ -186,6 +209,9 @@ export class Giant {
         if (this._anim) this._anim.stop();
         this._attacking = true;
         this._attackCd = ATTACK_COOLDOWN;
+        this._hitT = 0;
+        this._hitLanded = false;
+        // Face toward player; _placeRoot + angleDamp during update refine it.
         this.yaw = Math.atan2(playerX - this.x, playerZ - this.z);
         if (this._root) this._placeRoot(this._root);
 
@@ -197,15 +223,26 @@ export class Giant {
         this._anim = clip;
     }
 
-    /** Snap root to current x/z/yaw on the sand. */
-    _placeRoot(root) {
+    /** Snap root to current x/z/yaw on the sand (damped tilt). */
+    _placeRoot(root, dt = 1 / 60) {
         const groundY = this.terrain.heightAt(this.x, this.z);
         this.terrain.normalAt(this.x, this.z, _normal);
+        // Ease tilt normal so the body doesn't snap on every dune ripple.
+        const k = 1 - Math.exp(-6 * Math.max(dt, 1 / 120));
+        this._tiltN.x += (_normal.x * 0.5 - this._tiltN.x) * k;
+        this._tiltN.y += (_normal.y - this._tiltN.y) * k;
+        this._tiltN.z += (_normal.z * 0.5 - this._tiltN.z) * k;
+        const nLen = Math.hypot(this._tiltN.x, this._tiltN.y, this._tiltN.z) || 1;
+        _normal.set(this._tiltN.x / nLen, this._tiltN.y / nLen, this._tiltN.z / nLen);
+
         Quaternion.RotationAxisToRef(Vector3.UpReadOnly, this.yaw, _yawQ);
         Quaternion.FromUnitVectorsToRef(Vector3.UpReadOnly, _normal, _tiltQ);
         _tiltQ.multiplyToRef(_yawQ, _orient);
         if (!root.rotationQuaternion) root.rotationQuaternion = _orient.clone();
-        else root.rotationQuaternion.copyFrom(_orient);
+        else {
+            const sk = 1 - Math.exp(-10 * Math.max(dt, 1 / 120));
+            Quaternion.SlerpToRef(root.rotationQuaternion, _orient, sk, root.rotationQuaternion);
+        }
         root.position.set(this.x, groundY, this.z);
     }
 
@@ -333,6 +370,7 @@ export class Giant {
     update(dt, playerPos, cameraPos, env) {
         if (!this._mesh || !this._root) return;
 
+        this.didHit = false;
         if (this._attackCd > 0) this._attackCd -= Math.max(dt, 0);
 
         const pdx = playerPos.x - this.x;
@@ -349,7 +387,21 @@ export class Giant {
             }
         }
 
-        // Patrol only while not attacking.
+        // Timed hit window mid-swing (not on clip end, not ATTACK_RANGE).
+        if (this._attacking) {
+            this._hitT += Math.max(dt, 0);
+            if (
+                !this._hitLanded &&
+                this._hitT >= HIT_DELAY &&
+                this._hitT <= HIT_DELAY + HIT_WINDOW &&
+                pDist < HIT_RADIUS
+            ) {
+                this._hitLanded = true;
+                this.didHit = true;
+            }
+        }
+
+        // Patrol only while not attacking (move lock during swing).
         if (!this._attacking && dt > 0 && PATROL.length > 1) {
             const target = PATROL[this._patrolI];
             let dx = target.x - this.x;
@@ -363,15 +415,16 @@ export class Giant {
                 dz /= dist;
                 this.x += dx * step;
                 this.z += dz * step;
-                this.yaw = Math.atan2(dx, dz);
+                this.yaw = angleDamp(this.yaw, Math.atan2(dx, dz), 8, dt);
             }
-            this._placeRoot(this._root);
+            this._placeRoot(this._root, dt);
         } else if (this._attacking) {
-            // Keep facing the player during the swing.
-            this.yaw = Math.atan2(pdx, pdz);
-            this._placeRoot(this._root);
+            // Ease face toward the player during the swing — no snap.
+            const want = Math.atan2(pdx, pdz);
+            this.yaw = angleDamp(this.yaw, want, 6, dt);
+            this._placeRoot(this._root, dt);
         } else {
-            this._root.position.y = this.terrain.heightAt(this.x, this.z);
+            this._placeRoot(this._root, dt);
         }
 
         if (!this._attacking) this._stampFeet();
@@ -406,7 +459,7 @@ export class Giant {
         }
     }
 
-    /** Plant alternating foot brushes + a light drag under the stance. */
+    /** Plant alternating foot brushes — no continuous stance drag. */
     _stampFeet() {
         const field = this.terrain.deform;
         const dx = this.x - this._prevX;
@@ -424,23 +477,10 @@ export class Giant {
         const rx = -fz;
         const rz = fx;
 
-        // Continuous drag so the trail reads between discrete plants.
-        const k = Math.min(moved, 0.4);
-        field.brush(
-            this.x, this.z,
-            0.28,
-            0.16 * k * cs,
-            0.18 * k * cs * bs,
-            Math.min(1, 0.7 * k * env.compressionScale),
-            0,
-            this.yaw,
-            1.4,
-            0.8 * env.rimRoughness
-        );
-
+        const stride = this._stride || STRIDE;
         this._sinceSplat += moved;
-        if (this._sinceSplat < STRIDE) return;
-        this._sinceSplat = 0;
+        if (this._sinceSplat < stride) return;
+        this._sinceSplat -= stride;
 
         const side = this._foot ? 1 : -1;
         this._foot ^= 1;
@@ -449,8 +489,8 @@ export class Giant {
         field.brush(
             px, pz,
             FOOT_WIDTH,
-            0.22 * cs,
-            0.14 * cs * bs,
+            0.26 * cs,
+            0.16 * cs * bs,
             Math.min(1, 0.95 * env.compressionScale),
             0,
             this.yaw,

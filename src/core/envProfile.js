@@ -87,17 +87,17 @@ const SAND = {
     bermScale: 1.4,
     compressionScale: 1.15,
     rimRoughness: 0.5,
-    // Collapse rates at refillRate = 1. Desert-dry: prints cave in fast.
-    //   slump      berm avalanches into the hole (half-life ~1 s).
-    //   depDecay   floor τ ≈ 1.2 s — a print is gone in a few seconds.
-    //   bermDecay  berm τ ≈ 1.4 s.
+    // Collapse rates at refillRate = 1. Desert-dry but trails hold a few seconds.
+    //   slump      berm avalanches into the hole (half-life ~2–3 s).
+    //   depDecay   floor τ ≈ 3 s — paths read as owned ground.
+    //   bermDecay  berm τ ≈ 3.5 s.
     //   windInfill saltation fill from upwind.
-    slumpMul: 420.0,
-    bermDiffMul: 55.0,
-    depDiffMul: 50.0,
-    depDecayMul: 340.0,
-    bermDecayMul: 280.0,
-    windInfillMul: 14.0,
+    slumpMul: 160.0,
+    bermDiffMul: 40.0,
+    depDiffMul: 35.0,
+    depDecayMul: 120.0,
+    bermDecayMul: 100.0,
+    windInfillMul: 6.0,
     sprayKickScale: 0.55,
     iceScale: 0.0,
     exposure: 0.14,

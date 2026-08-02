@@ -28,6 +28,8 @@ export const input = {
     inspectPressed: false,
     /** Sticky: character frozen, camera orbits the inspected pillar. */
     inspecting: false,
+    /** Set for one frame on C — cycle player emote. */
+    emotePressed: false,
 
     locked: false,
 };
@@ -76,6 +78,7 @@ export function initInput(canvas) {
         }
         if (e.code === "KeyE" && !e.repeat) input.openPressed = true;
         if (e.code === "KeyI" && !e.repeat) input.inspectPressed = true;
+        if (e.code === "KeyC" && !e.repeat) input.emotePressed = true;
         if (e.code === "Escape" && !e.repeat && input.inspecting) {
             input.inspectPressed = true; // same toggle path exits inspect
         }
@@ -121,4 +124,5 @@ export function endFrame() {
     input.jumpPressed = false;
     input.openPressed = false;
     input.inspectPressed = false;
+    input.emotePressed = false;
 }
