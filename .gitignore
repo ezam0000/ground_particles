@@ -30,10 +30,12 @@ Thumbs.db
 !public/assets/environments/**/*.jpg
 !public/assets/environments/**/*.webp
 
-# authored character fabric maps (see public/assets/character/)
+# authored character fabric maps + player GLB (see public/assets/character/)
 !public/assets/character/**/*.png
 !public/assets/character/**/*.jpg
 !public/assets/character/**/*.webp
+!public/assets/character/**/*.glb
+!public/assets/character/**/*.gltf
 
 # synced portfolio stills + org logos
 !public/assets/portfolio/**/*.png

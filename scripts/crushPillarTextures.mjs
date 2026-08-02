@@ -1,15 +1,16 @@
 /**
- * Crush odyssey GLB textures for web delivery.
+ * Crush GLB textures for web delivery.
  *
  * Runtime prop shading only samples base color. Drop extra maps and
  * downscale / re-JPEG the albedo hard. Skins + animations are preserved.
  *
  *   node scripts/crushPillarTextures.mjs
  *   node scripts/crushPillarTextures.mjs giant.glb
+ *   node scripts/crushPillarTextures.mjs public/assets/character/main_man.glb
  */
 
-import { readFileSync, writeFileSync, mkdtempSync, rmSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { readFileSync, writeFileSync, mkdtempSync, rmSync, readdirSync, existsSync } from "node:fs";
+import { join, isAbsolute, basename } from "node:path";
 import { tmpdir } from "node:os";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -91,8 +92,9 @@ function crushImage(bytes, mime, workDir, tag) {
     return readFileSync(out);
 }
 
-function crushFile(file) {
-    const src = join(DIR, file);
+function crushFile(filePath) {
+    const src = filePath;
+    const label = basename(src);
     const before = readFileSync(src);
     const { json, bin } = parseGlb(before);
 
@@ -100,14 +102,14 @@ function crushFile(file) {
     try {
         const baseImg = pickAlbedoImage(json);
         if (!baseImg || baseImg.bufferView == null) {
-            console.warn("skip (no image):", file);
+            console.warn("skip (no image):", label);
             return;
         }
 
         const bv = json.bufferViews[baseImg.bufferView];
         const raw = bin.subarray(bv.byteOffset || 0, (bv.byteOffset || 0) + bv.byteLength);
         const crushed = crushImage(
-            raw, baseImg.mimeType || "image/jpeg", work, file.replace(/\.glb$/, "")
+            raw, baseImg.mimeType || "image/jpeg", work, label.replace(/\.glb$/, "")
         );
 
         const keepView = new Set();
@@ -201,7 +203,7 @@ function crushFile(file) {
         writeFileSync(src, out);
         const pct = ((1 - out.length / before.length) * 100).toFixed(0);
         console.log(
-            `${file.padEnd(24)} ${(before.length / 1e6).toFixed(2)}MB → ${(out.length / 1e6).toFixed(2)}MB  (−${pct}%)  albedo ${(crushed.length / 1024).toFixed(0)}KB`
+            `${label.padEnd(24)} ${(before.length / 1e6).toFixed(2)}MB → ${(out.length / 1e6).toFixed(2)}MB  (−${pct}%)  albedo ${(crushed.length / 1024).toFixed(0)}KB`
         );
         return { before: before.length, after: out.length };
     } finally {
@@ -211,8 +213,15 @@ function crushFile(file) {
 
 const only = process.argv.slice(2).filter((a) => a.endsWith(".glb"));
 const files = only.length
-    ? only
-    : readdirSync(DIR).filter((f) => f.endsWith(".glb")).sort();
+    ? only.map((a) => {
+        if (isAbsolute(a)) return a;
+        const fromRoot = join(ROOT, a);
+        if (existsSync(fromRoot)) return fromRoot;
+        const fromDir = join(DIR, a);
+        if (existsSync(fromDir)) return fromDir;
+        return fromRoot;
+    })
+    : readdirSync(DIR).filter((f) => f.endsWith(".glb")).map((f) => join(DIR, f));
 
 let before = 0, after = 0;
 for (const f of files) {

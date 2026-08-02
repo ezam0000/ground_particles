@@ -18,7 +18,7 @@ import { S, onChange } from "./core/settings.js";
 import { initInput, pollInput, endFrame, input } from "./core/input.js";
 import { CameraRig } from "./core/camera.js";
 import { CharacterController } from "./character/controller.js";
-import { Character } from "./character/character.js";
+import { PlayerAvatar } from "./character/avatar.js";
 import { SnowContact } from "./character/snowContact.js";
 import { SprayField } from "./vfx/particles.js";
 import { SpellLights } from "./spells/spellLights.js";
@@ -121,23 +121,22 @@ async function boot() {
     character.position.set(0, 0, 0);
     character.position.y = terrain.heightAt(0, 0);
 
-    // The figure: skeleton, garment simulation, shell fur.
-    const figure = new Character(scene, terrain, sky, shadows, character);
-    onChange("showCharacter", (v) => figure.setVisible(v));
-    figure.registerPrepass(depthPass);
-
     // Airborne grit: footfall kicks and jump-landing bursts.
     const spray = new SprayField(scene, terrain, sky, shadows);
-
-    // Feet write into the terrain state buffer through here.
-    const contact = new SnowContact(character, terrain.deform, figure.figure, spray);
 
     // Every lit material declares the spell-light pool uniforms. Pedestals fill
     // the pool each frame with plaza / pedestal spots; everyone else reads it.
     const lights = new SpellLights();
-    for (const m of [terrain.material, figure.bodyMat, figure.clothMat, spray.material]) {
+    for (const m of [terrain.material, spray.material]) {
         lights.apply(m);
     }
+
+    // Authored skinned player (crushed main_man.glb).
+    const avatar = new PlayerAvatar(scene, terrain, sky, shadows, depthPass, lights, character);
+    onChange("showCharacter", (v) => avatar.setVisible(v));
+
+    // Feet write into the terrain state buffer — controller footfalls (no IK figure).
+    const contact = new SnowContact(character, terrain.deform, null, spray);
 
     await loading.phase("planting monoliths", 0.62);
 
@@ -159,14 +158,13 @@ async function boot() {
     sky.render(rig, 0);
     await terrain.warmUp();
     terrain.update(rig.camera.position, character.position, 0);
-    figure.update(0);
-    figure.sync(rig.camera.position);
-    await figure.warmUp();
+    avatar.update(0, rig.camera.position, getLerped());
+    await avatar.warmUp();
     spray.update(0, rig.camera.position);
     await spray.warmUp();
     pedestals.update(character.position, rig.camera.position, getLerped());
     await pedestals.warmUp();
-    giant.update(0, rig.camera.position, getLerped());
+    giant.update(0, character.position, rig.camera.position, getLerped());
     await giant.warmUp();
     await whenReady(sky.material, "sky material", [sky.mesh, false]);
     await depthPass.warmUp();
@@ -204,10 +202,6 @@ async function boot() {
         pedestals.resolveCollision(character.position);
         giant.resolveCollision(character.position);
         terrain.heightfield.clampToPlayArea(character.position);
-        // Pose and simulate before the contact pass: the footprints are stamped
-        // at the boot's actual planted position, which only exists once the
-        // figure has been solved.
-        figure.update(dt);
         contact.update(dt);
 
         _vel.copyFrom(character.velocity);
@@ -225,15 +219,13 @@ async function boot() {
         // cascade matrices; before the terrain, so the brushes are in the
         // staging array when the simulation pass runs.
         pedestals.update(character.position, rig.camera.position, getLerped());
-        giant.update(dt, rig.camera.position, getLerped());
+        giant.update(dt, character.position, rig.camera.position, getLerped());
+        avatar.update(dt, rig.camera.position, getLerped());
         // Pedestals just refilled the light pool — push it into the rest of the scene.
-        for (const m of [terrain.material, figure.bodyMat, figure.clothMat, spray.material]) {
+        for (const m of [terrain.material, spray.material]) {
             lights.apply(m);
         }
         terrain.update(rig.camera.position, character.position, dt);
-        // After the shadow refit, so the figure's uniforms carry this frame's
-        // cascade matrices rather than last frame's.
-        figure.sync(rig.camera.position);
         spray.update(dt, rig.camera.position);
 
         scene.render();
@@ -245,7 +237,7 @@ async function boot() {
     await loading.done();
 
     globalThis.DUNES = {
-        engine, scene, rig, character, figure, contact, spray, pedestals, giant,
+        engine, scene, rig, character, avatar, contact, spray, pedestals, giant,
         terrain, sky, shadows, post, depthPass,
         S, input,
     };
