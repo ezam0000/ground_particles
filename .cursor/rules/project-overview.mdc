@@ -18,7 +18,7 @@ src/core/            settings, input, camera, loading, gpuUtil, envProfile
 src/terrain/         heightfield, clipmap, deformation state buffer
 src/render/          sky/IBL, shadow cascades, depth prepass
 src/character/       controller, PlayerAvatar (GLB), snowContact
-src/props/           Giant, Antinous (sun-summon patrol enemy)
+src/props/           Giant, Antinous, SheepFlock, Cyclops (Polyphemus)
 src/combat/          bow, arrow pool, sfx helpers
 src/portfolio/       pedestals, cards, projects.json
 src/vfx/             spray particles

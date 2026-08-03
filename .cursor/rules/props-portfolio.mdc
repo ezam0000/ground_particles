@@ -1,12 +1,12 @@
 ---
-description: Pillars, giant melee, Antinous sun-summon, crush conventions
+description: Pillars, giant, Antinous, sheep flock, Polyphemus cyclops
 globs: src/props/**/*.js,src/portfolio/**/*.js
 alwaysApply: false
 ---
 
 # Props / portfolio
 
-## Pattern (avatar + giant + pillars + Antinous)
+## Pattern
 
 - Load GLB → CPU skin if skinned → bind **`prop`** (albedo) → shadow/prepass with **static** depth shaders.
 - Drive in-place clips by moving the root; sample `terrain.heightAt` / `normalAt`; damp tilt.
@@ -22,19 +22,24 @@ alwaysApply: false
 
 - Patrol → proximity attack clips; **move-lock** while `_attacking` / `_reacting`.
 - Melee hits need **contact** in a timed window: front-facing + hand/forearm near player or body-press; then `didHit` + `giant_hit.mp3` → `character.applyHit` / `avatar.playHit`.
-- Arrow zones: `Hit_Back` / `Hit_Waist` / `Hit_Chest` via `playHit(zone)`; headshots = face-only (see combat).
-- Every **5th** arrow land → `giant_roar.mp3` (count always increments).
-- Stuck arrows: `attachToBone` nearest body bone. Foot stamps from stride distance, not continuous drag.
+- Arrow zones via `playHit(zone)`; headshots = face-only (see combat).
+- Every **5th** arrow land → `giant_roar.mp3`. Stuck arrows: `attachToBone`.
 
 ## Antinous ([`src/props/antinous.js`](src/props/antinous.js))
 
-- Spawns once after **5** sun-aimed shots (`dot(aim, sunDir) > cos(12°)` via `avatar.onShot` → `noteShot`).
-- Summon: `antinous_summon.mp3` + `Fall_from_Bar`, then patrol ring (no melee).
-- `Walking` → `Injured_Walk` after 10 hits; dies at **20** (zone death + `antinous_death.mp3`).
-- Each land: impact SFX + zone react. **5th** hit also plays `antinous_will_not.mp3`. Head any facing → headshot SFX.
-- Rare `Fall_from_Bar` tantrum after first hit (~10s cooldown). Death leaves **corpse**; approach + **I** revives in place (hit count resets).
-- Crush `antinous.glb` before commit; CPU-skin + `prop` shaders.
+- Spawns after **5** sun-aimed shots. Patrol-only; dies at **20**. Corpse + **I** revive. Crush before commit.
+
+## Sheep ([`src/props/sheep.js`](src/props/sheep.js))
+
+- **4** patrol east of spawn (`~28, −12`). Arrow hit → random `sheep_1..3.mp3`; die after **2** hits (sink then hide).
+- `onAllDead` once → Polyphemus spawn. Collision push while alive/sinking.
+
+## Polyphemus / Cyclops ([`src/props/cyclops.js`](src/props/cyclops.js))
+
+- Hidden until sheep flock wiped → `Dive_Down_and_Land_2` then **calm patrol**.
+- **Headshot only** starts ~4.5s enrage (chase `Running` + one `Charged_Upward_Slash` if in range). Body hits = pain + react, no enrage.
+- Dies from **5 headshots inside 15s** (rolling queue). Death → `cyclops_death.mp3` + corpse → [`polyphemusCard.js`](src/props/polyphemusCard.js) (framed PNG, dim, lock + camera inspect; **E** dismisses).
 
 ## Assets
 
-- Models under `public/assets/odyssey/models/`. Crush before commit. Albedo-only unless there is a shader plan for more maps.
+- Models under `public/assets/odyssey/models/` (`sheep.glb`, `cyclops.glb`, …). Crush before commit. Card: `odyssey/polyphemus_card.png`.

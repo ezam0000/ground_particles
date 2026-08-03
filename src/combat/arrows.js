@@ -113,6 +113,14 @@ export class ArrowPool {
         this.onAntinousHit = null;
         /** @type {import("../props/antinous.js").Antinous|null} */
         this.antinous = null;
+        /** @type {((sheep: object) => void)|null} */
+        this.onSheepHit = null;
+        /** @type {import("../props/sheep.js").SheepFlock|null} */
+        this.sheep = null;
+        /** @type {((zone: "back"|"waist"|"chest"|"head", x:number, y:number, z:number) => void)|null} */
+        this.onCyclopsHit = null;
+        /** @type {import("../props/cyclops.js").Cyclops|null} */
+        this.cyclops = null;
         /** @type {import("../portfolio/pedestals.js").Pedestals|null} */
         this.pedestals = null;
 
@@ -356,10 +364,11 @@ export class ArrowPool {
      * @param {number} dx unit dir
      * @param {number} dy
      * @param {number} dz
-     * @param {"ground"|"giant"|"pillar"|"antinous"} kind
+     * @param {"ground"|"giant"|"pillar"|"antinous"|"sheep"|"cyclops"} kind
      * @param {{ x:number, z:number, radius:number, root: import("@babylonjs/core/Meshes/transformNode").TransformNode }|null} [pillar]
+     * @param {{ x:number, z:number, bodyRadius?:number, root?: import("@babylonjs/core/Meshes/transformNode").TransformNode, _mesh?: import("@babylonjs/core/Meshes/mesh").Mesh, _root?: import("@babylonjs/core/Meshes/transformNode").TransformNode }|null} [hostExtra]
      */
-    _plant(i, x, y, z, dx, dy, dz, kind, pillar = null) {
+    _plant(i, x, y, z, dx, dy, dz, kind, pillar = null, hostExtra = null) {
         _dir.set(dx, dy, dz);
         if (_dir.lengthSquared() < 1e-8) _dir.set(0, -1, 0);
         _dir.normalize();
@@ -376,6 +385,15 @@ export class ArrowPool {
             sx = g.x + (ox / horiz) * GIANT_BODY_R;
             sz = g.z + (oz / horiz) * GIANT_BODY_R;
             sy = y;
+        } else if (kind === "cyclops" && this.cyclops) {
+            const c = this.cyclops;
+            const bodyR = c.bodyRadius || 0.48;
+            const ox = x - c.x;
+            const oz = z - c.z;
+            const horiz = Math.hypot(ox, oz) || 1;
+            sx = c.x + (ox / horiz) * bodyR;
+            sz = c.z + (oz / horiz) * bodyR;
+            sy = y;
         } else if (kind === "antinous" && this.antinous) {
             const a = this.antinous;
             const bodyR = a.bodyRadius || 0.32;
@@ -384,6 +402,14 @@ export class ArrowPool {
             const horiz = Math.hypot(ox, oz) || 1;
             sx = a.x + (ox / horiz) * bodyR;
             sz = a.z + (oz / horiz) * bodyR;
+            sy = y;
+        } else if (kind === "sheep" && hostExtra) {
+            const bodyR = hostExtra.bodyRadius || 0.28;
+            const ox = x - hostExtra.x;
+            const oz = z - hostExtra.z;
+            const horiz = Math.hypot(ox, oz) || 1;
+            sx = hostExtra.x + (ox / horiz) * bodyR;
+            sz = hostExtra.z + (oz / horiz) * bodyR;
             sy = y;
         } else if (kind === "pillar" && pillar) {
             const ox = x - pillar.x;
@@ -419,10 +445,12 @@ export class ArrowPool {
 
         const host =
             kind === "giant" ? this.giant
+            : kind === "cyclops" ? this.cyclops
             : kind === "antinous" ? this.antinous
+            : kind === "sheep" ? hostExtra
             : null;
-        if (host?._mesh) {
-            const mesh = host._mesh;
+        if (host?._mesh || host?.mesh) {
+            const mesh = host._mesh || host.mesh;
             const bone = this._closestBone(mesh, _pos.x, _pos.y, _pos.z);
             if (bone) {
                 _boneWorld.copyFrom(bone.getAbsoluteTransform());
@@ -439,8 +467,8 @@ export class ArrowPool {
                 const wm = mesh.getWorldMatrix().m;
                 const sxn = Math.hypot(wm[0], wm[1], wm[2]) || 1;
                 root.scaling.setAll(this._arrowScale / sxn);
-            } else if (host._root) {
-                root.setParent(host._root, true);
+            } else if (host._root || host.root) {
+                root.setParent(host._root || host.root, true);
             }
         } else if (kind === "pillar" && pillar?.root) {
             root.setParent(pillar.root, true);
@@ -552,6 +580,60 @@ export class ArrowPool {
     }
 
     /**
+     * @param {number} px
+     * @param {number} py
+     * @param {number} pz
+     * @returns {object|null} sheep unit
+     */
+    _classifySheepHit(px, py, pz) {
+        const flock = this.sheep;
+        if (!flock?.sheep?.length) return null;
+        const pad = flock.hitPad || 0.55;
+        for (let i = 0; i < flock.sheep.length; i++) {
+            const s = flock.sheep[i];
+            if (!s.alive) continue;
+            const dx = px - s.x;
+            const dz = pz - s.z;
+            const r = (flock.radius || 0.38) + pad;
+            if (dx * dx + dz * dz > r * r) continue;
+            const ground = this.terrain.heightAt(s.x, s.z);
+            if (py < ground - 0.1 || py > ground + 1.35) continue;
+            return s;
+        }
+        return null;
+    }
+
+    /**
+     * @param {number} px
+     * @param {number} py
+     * @param {number} pz
+     * @param {number} vx
+     * @param {number} vz
+     * @returns {"back"|"waist"|"chest"|"head"|null}
+     */
+    _classifyCyclopsHit(px, py, pz, vx, vz) {
+        const c = this.cyclops;
+        if (!c?.alive) return null;
+        const dx = px - c.x;
+        const dz = pz - c.z;
+        const r = c.radius + HIT_RADIUS;
+        if (dx * dx + dz * dz > r * r) return null;
+        const ground = this.terrain.heightAt(c.x, c.z);
+        if (py < ground - 0.2 || py > ground + 3.8) return null;
+
+        const fx = Math.sin(c.yaw);
+        const fz = Math.cos(c.yaw);
+        const h = Math.hypot(vx, vz) || 1;
+        const fromBack = (vx / h) * fx + (vz / h) * fz > 0.25;
+        if (fromBack) return "back";
+        const localY = py - ground;
+        const faceY = c.headY || 2.55;
+        if (localY >= faceY) return "head";
+        const chestY = c.chestY || 1.85;
+        return localY >= chestY ? "chest" : "waist";
+    }
+
+    /**
      * @param {number} dt
      * @param {Vector3} cameraPos
      * @param {ReturnType<import("../core/envProfile.js").getLerped>} env
@@ -586,6 +668,21 @@ export class ArrowPool {
                 continue;
             }
 
+            const sheepHit = this._classifySheepHit(this._px[i], this._py[i], this._pz[i]);
+            if (sheepHit) {
+                const hx = this._px[i], hy = this._py[i], hz = this._pz[i];
+                const spd = Math.hypot(this._vx[i], this._vy[i], this._vz[i]) || 1;
+                this._plant(
+                    i, hx, hy, hz,
+                    this._vx[i] / spd, this._vy[i] / spd, this._vz[i] / spd,
+                    "sheep",
+                    null,
+                    sheepHit
+                );
+                if (this.onSheepHit) this.onSheepHit(sheepHit);
+                continue;
+            }
+
             if (g) {
                 const zone = this._classifyGiantHit(
                     this._px[i], this._py[i], this._pz[i],
@@ -602,6 +699,24 @@ export class ArrowPool {
                     if (zone === "head") this._playHeadshot();
                     else this._playImpact();
                     if (this.onGiantHit) this.onGiantHit(zone, hx, hy, hz);
+                    continue;
+                }
+            }
+
+            if (this.cyclops?.alive) {
+                const zone = this._classifyCyclopsHit(
+                    this._px[i], this._py[i], this._pz[i],
+                    this._vx[i], this._vz[i]
+                );
+                if (zone) {
+                    const hx = this._px[i], hy = this._py[i], hz = this._pz[i];
+                    const spd = Math.hypot(this._vx[i], this._vy[i], this._vz[i]) || 1;
+                    this._plant(
+                        i, hx, hy, hz,
+                        this._vx[i] / spd, this._vy[i] / spd, this._vz[i] / spd,
+                        "cyclops"
+                    );
+                    if (this.onCyclopsHit) this.onCyclopsHit(zone, hx, hy, hz);
                     continue;
                 }
             }

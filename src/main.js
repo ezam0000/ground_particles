@@ -30,6 +30,9 @@ import { PostChain } from "./post/postChain.js";
 import { Pedestals } from "./portfolio/pedestals.js";
 import { Giant } from "./props/giant.js";
 import { Antinous } from "./props/antinous.js";
+import { SheepFlock } from "./props/sheep.js";
+import { Cyclops } from "./props/cyclops.js";
+import { PolyphemusCard } from "./props/polyphemusCard.js";
 import { ArrowPool } from "./combat/arrows.js";
 import { Bow } from "./combat/bow.js";
 import { unlockAudio } from "./combat/sfx.js";
@@ -146,17 +149,25 @@ async function boot() {
     await loading.phase("raising the pillars", 0.62);
 
     // Three plazas + the colossus south of spawn + Antinous (sun-summon).
+    // Sheep pasture east of spawn; Polyphemus after the flock is wiped.
     const pedestals = new Pedestals(scene, terrain, sky, shadows, depthPass, lights);
     const giant = new Giant(scene, terrain, sky, shadows, depthPass, lights);
     const antinous = new Antinous(scene, terrain, sky, shadows, depthPass, lights);
+    const sheep = new SheepFlock(scene, terrain, sky, shadows, depthPass, lights);
+    const cyclops = new Cyclops(scene, terrain, sky, shadows, depthPass, lights);
+    const polyCard = new PolyphemusCard();
 
     // Bow combat: pooled arrows + procedural bow on the player's hand.
     const arrows = new ArrowPool(scene, terrain, sky, shadows, lights);
     arrows.giant = giant;
     arrows.antinous = antinous;
+    arrows.sheep = sheep;
+    arrows.cyclops = cyclops;
     arrows.pedestals = pedestals;
     arrows.onGiantHit = (zone) => giant.playHit(zone);
     arrows.onAntinousHit = (zone) => antinous.playHit(zone);
+    arrows.onSheepHit = (unit) => sheep.playHit(unit);
+    arrows.onCyclopsHit = (zone) => cyclops.playHit(zone);
     const bow = new Bow(scene, sky, shadows, lights, arrows);
     avatar.bow = bow;
     avatar.getAimDir = () => {
@@ -165,6 +176,17 @@ async function boot() {
     };
     avatar.getCameraPos = () => rig.camera.position;
     avatar.onShot = (aimDir) => antinous.noteShot(aimDir, character.position);
+
+    sheep.onAllDead = () => {
+        const s0 = sheep.sheep[0];
+        cyclops.spawn({ x: s0?.x ?? 28, z: s0?.z ?? -12 });
+    };
+    cyclops.onDeath = () => {
+        character.locked = true;
+        const gy = terrain.heightAt(cyclops.x, cyclops.z) + 1.6;
+        rig.beginInspect(cyclops.x, gy, cyclops.z);
+        polyCard.show();
+    };
 
     // The rig needs ground heights to keep the spring arm above the sand.
     rig.groundAt = (x, z) => terrain.heightAt(x, z);
@@ -194,6 +216,10 @@ async function boot() {
     await giant.warmUp();
     antinous.update(0, character.position, rig.camera.position, getLerped());
     await antinous.warmUp();
+    sheep.update(0, rig.camera.position, getLerped());
+    await sheep.warmUp();
+    cyclops.update(0, character.position, rig.camera.position, getLerped());
+    await cyclops.warmUp();
     await whenReady(sky.material, "sky material", [sky.mesh, false]);
     await depthPass.warmUp();
     post.update(0, rig.distance);
@@ -225,13 +251,21 @@ async function boot() {
         pollInput();
         updateEnv(dt);
 
-        if (!antinous.pollRevive(character.position)) {
+        if (polyCard.visible) {
+            if (input.openPressed) {
+                polyCard.hide();
+                character.locked = false;
+                if (rig.inspecting) rig.endInspect();
+            }
+        } else if (!antinous.pollRevive(character.position)) {
             pedestals.pollInspect(rig, character.position);
         }
         character.update(dt, rig);
         pedestals.resolveCollision(character.position);
         giant.resolveCollision(character.position);
         antinous.resolveCollision(character.position);
+        sheep.resolveCollision(character.position);
+        cyclops.resolveCollision(character.position);
         terrain.heightfield.clampToPlayArea(character.position);
         contact.update(dt);
 
@@ -253,6 +287,12 @@ async function boot() {
         giant.update(dt, character.position, rig.camera.position, getLerped());
         if (giant.didHit) {
             character.applyHit(giant.x, giant.z);
+            avatar.playHit();
+        }
+        sheep.update(dt, rig.camera.position, getLerped());
+        cyclops.update(dt, character.position, rig.camera.position, getLerped());
+        if (cyclops.didHit) {
+            character.applyHit(cyclops.x, cyclops.z);
             avatar.playHit();
         }
         antinous.update(dt, character.position, rig.camera.position, getLerped());
@@ -277,7 +317,7 @@ async function boot() {
 
     globalThis.DUNES = {
         engine, scene, rig, character, avatar, contact, spray, pedestals, giant,
-        antinous, bow, arrows,
+        antinous, sheep, cyclops, polyCard, bow, arrows,
         terrain, sky, shadows, post, depthPass,
         S, input,
     };

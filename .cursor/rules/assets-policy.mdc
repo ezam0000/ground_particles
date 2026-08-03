@@ -14,9 +14,10 @@ public/assets/environments/sand/detail.png          # optional RGBA detail (512â
 public/assets/character/main_man.glb                # player skin + anims
 public/assets/character/bow.glb                     # bow mesh (crush albedo)
 public/assets/character/arrow.glb                   # flight + stuck arrows
-public/assets/odyssey/models/*.glb                  # pillars, giant, antinous
+public/assets/odyssey/models/*.glb                  # pillars, giant, antinous, sheep, cyclops
+public/assets/odyssey/polyphemus_card.png           # cyclops death card art
 public/assets/portfolio/org/*                       # edu/job logos only
-public/assets/sfx/*.mp3                             # bow, impacts, headshot, giant/antinous VO
+public/assets/sfx/*.mp3                             # bow, impacts, headshot, giant/antinous/sheep/cyclops VO
 public/assets/boot/loading_screen_background.mp4    # boot loop
 ```
 
@@ -51,7 +52,7 @@ Env detail: RG = tangent normal XY (`n*0.5+0.5`), B = cavity, A = height. Missin
 
 - `src/combat/sfx.js` â€” Web Audio, no per-frame alloc. Unlock on pointer-lock / first shot.
 - Trim leading silence on one-shots. Prefer **mono ~22 kHz / 64 kbps MP3**.
-- Combat VO set includes bow, pillar/arrow impact, headshot, giant hit/roar, Antinous summon/impact/death/will_not.
+- Combat VO set includes bow, pillar/arrow impact, headshot, giant hit/roar, Antinous summon/impact/death/will_not, sheep baas, cyclops pain/death.
 
 ## Boot
 

@@ -18,13 +18,15 @@ alwaysApply: false
 
 - Pool of **10** `arrow.glb` — flight + stuck (FIFO recycle). Tip authored −Z → `_tipFix` yaw; plant mid-shaft with ~`PENETRATE`.
 - Giant plant: snap to `GIANT_BODY_R`, then **`attachToBone`** nearest body bone (not root).
+- Cyclops / Antinous / sheep: plant at body radius + bone attach when skinned.
 - Pillar plant: detect `hitRadius`, plant at tighter `surfaceRadius`; parent to pillar; `arrow_impact_pillar.mp3`.
 - Ground plant: world-space stuck in sand.
+- Hit order: ground → **sheep** → giant → **cyclops** → antinous → pillar.
 
 ## Headshots
 
-- Zone from impact local Y (+ facing for giant). Play `headshot.mp3` on `"head"`.
-- **Giant:** face band only (front + `localY >= GIANT_FACE_Y`). Back hits stay `"back"`.
+- Zone from impact local Y (+ facing for giant/cyclops). Play `headshot.mp3` on `"head"` (cyclops plays it in `playHit`).
+- **Giant / Cyclops:** face band only (front + head height). Back hits stay `"back"`.
 - **Antinous:** head band from **any** facing (`localY >= ANTI_HEAD_Y` / `a.headY`).
 
 ## SFX ([`src/combat/sfx.js`](src/combat/sfx.js))
