@@ -51,4 +51,8 @@ Thumbs.db
 !public/assets/odyssey/**/*.webp
 !public/assets/odyssey/**/*.glb
 !public/assets/odyssey/**/*.gltf
+
+# boot loading screen background
+!public/assets/boot/**/*.mp4
+!public/assets/boot/**/*.webm
 .vercel

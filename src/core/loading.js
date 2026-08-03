@@ -31,9 +31,11 @@ export async function phase(text, to) {
 }
 
 export async function done() {
-    await phase("ready", 1);
+    await phase("enter", 1);
     // Let the bar visibly land before the fade starts.
     await new Promise((r) => setTimeout(r, 360));
+    const vid = /** @type {HTMLVideoElement|null} */ (document.getElementById("boot-video"));
+    if (vid) vid.pause();
     root?.classList.add("gone");
     hint?.classList.add("show");
     crosshair?.classList.add("show");

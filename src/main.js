@@ -48,7 +48,7 @@ async function boot() {
         return;
     }
 
-    await loading.phase("creating device", 0.05);
+    await loading.phase("waking the dunes", 0.05);
 
     const engine = new WebGPUEngine(canvas, {
         antialias: false, // TAA handles edges; MSAA here would just cost bandwidth
@@ -80,7 +80,7 @@ async function boot() {
 
     registerShaders();
 
-    await loading.phase("building scene", 0.12);
+    await loading.phase("shaping the sand", 0.12);
 
     const scene = new Scene(engine);
     scene.clearColor = new Color4(0.02, 0.03, 0.05, 1);
@@ -97,7 +97,7 @@ async function boot() {
     scene.activeCamera = rig.camera;
 
     // ------------------------------------------------------------------ sky
-    await loading.phase("integrating atmosphere", 0.2);
+    await loading.phase("gathering light", 0.2);
     const sky = new Sky(scene);
     sky.mesh.renderingGroupId = 0;
     await sky.solve();
@@ -112,14 +112,14 @@ async function boot() {
     const depthPass = new DepthPass(scene);
 
     // -------------------------------------------------------------- terrain
-    await loading.phase("baking heightfield", 0.34);
+    await loading.phase("packing the dunes", 0.34);
     const terrain = new Terrain(scene, sky, shadows);
     terrain.mesh.renderingGroupId = 1;
     await terrain.build();
     onChange("showTerrain", (v) => (terrain.mesh.isVisible = v));
     depthPass.registerCaster(terrain.mesh, terrain.makePrepassMaterial());
 
-    await loading.phase("placing character", 0.55);
+    await loading.phase("calling the walker", 0.55);
 
     const character = new CharacterController(terrain);
     character.position.set(0, 0, 0);
@@ -142,7 +142,7 @@ async function boot() {
     // Feet write into the terrain state buffer — controller footfalls (no IK figure).
     const contact = new SnowContact(character, terrain.deform, null, spray);
 
-    await loading.phase("planting monoliths", 0.62);
+    await loading.phase("raising the pillars", 0.62);
 
     // Three plazas + the colossus south of spawn.
     const pedestals = new Pedestals(scene, terrain, sky, shadows, depthPass, lights);
@@ -171,7 +171,7 @@ async function boot() {
 
     // ------------------------------------------------------------- warm-up
     // Everything that can compile, compiles here — behind the loading screen.
-    await loading.phase("compiling pipelines", 0.8);
+    await loading.phase("tempering the bow", 0.8);
     shadows.update(rig.camera, sky.sunDir);
     sky.render(rig, 0);
     await terrain.warmUp();
@@ -195,7 +195,7 @@ async function boot() {
         await whenReady(passes[i], "post:" + passes[i].name);
     }
 
-    await loading.phase("warming render targets", 0.94);
+    await loading.phase("heat shimmer", 0.94);
     // A few real frames so every render target is allocated and every pipeline
     // has actually been bound at least once.
     for (let i = 0; i < 3; i++) {

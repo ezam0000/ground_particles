@@ -17,6 +17,7 @@ public/assets/character/arrow.glb                   # flight + stuck arrows
 public/assets/odyssey/models/*.glb                  # pillars, giant
 public/assets/portfolio/*                           # card thumbs / gifs
 public/assets/sfx/*.mp3                             # bow, arrow/giant/pillar impacts
+public/assets/boot/loading_screen_background.mp4    # boot loop
 ```
 
 Env detail channels (match `detailBake`): RG = tangent normal XY (`n*0.5+0.5`), B = cavity, A = height. Missing → procedural bake for that side.
@@ -41,7 +42,7 @@ Env detail channels (match `detailBake`): RG = tangent normal XY (`n*0.5+0.5`), 
 
 ## Git
 
-`.gitignore` allows env/character/portfolio/odyssey media via `!public/assets/...` exceptions. Keep large sources out of git until crushed.
+`.gitignore` allows env/character/portfolio/odyssey/boot media via `!public/assets/...` exceptions. Keep large sources out of git until crushed.
 
 ## Rules
 
