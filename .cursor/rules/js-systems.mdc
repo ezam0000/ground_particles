@@ -42,6 +42,7 @@ Input edges (`jumpPressed`, `emotePressed`, `drawPressed`, `openPressed`) clear 
 
 - Bow grips LeftHand (skeleton refresh required); arrows are a 10-slot FIFO pool (flight + stuck).
 - Fire muzzle→look-ray (`AIM_AHEAD` + `getCameraPos`) so OTS parallax matches the crosshair.
-- Giant melee hits only on contact window + SFX; arrow hits call `giant.playHit(zone)`.
-- Antinous: 5 sun shots spawn; arrow hits call `antinous.playHit(zone)`; dies at 20.
+- Bow SFX: after 5 shots, volume drops to `0.35×` base.
+- Giant melee = contact window + SFX; arrow hits → `giant.playHit(zone)` (face-only headshots).
+- Antinous: 5 sun shots spawn; `playHit(zone)` (any-facing head); dies at 20; corpse **I**-revive before pillar inspect.
 - Pillars: detect `hitRadius`, plant `surfaceRadius`.

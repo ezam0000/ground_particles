@@ -1,47 +1,40 @@
 ---
-description: Authored GLB props — pillars, giant melee/reacts, crush conventions
+description: Pillars, giant melee, Antinous sun-summon, crush conventions
 globs: src/props/**/*.js,src/portfolio/**/*.js
 alwaysApply: false
 ---
 
 # Props / portfolio
 
-## Pattern (avatar + giant + pillars)
+## Pattern (avatar + giant + pillars + Antinous)
 
-- Load GLB → CPU skin if skinned → bind **`prop`** material (albedo) → register shadow/prepass with **static** depth shaders.
-- Drive in-place clips by moving the root; sample `terrain.heightAt` / `normalAt`; damp tilt (no per-frame snap).
+- Load GLB → CPU skin if skinned → bind **`prop`** (albedo) → shadow/prepass with **static** depth shaders.
+- Drive in-place clips by moving the root; sample `terrain.heightAt` / `normalAt`; damp tilt.
 
 ## Pedestals
 
-- Data from `portfolio/projects.json` (+ sync script). Collision = XZ circle push (`COLLIDE_RADIUS`).
-- Arrow footprints: `hitRadius` (detect, from min AABB half-extent) vs `surfaceRadius` (plant / embed). Do not use fat max-AABB as the plant radius.
-- Approach shows **text-only** card (no thumbs); **E** opens link; **I** inspects (freezes character via `input.inspecting`).
-- Key lights go through `SpellLights` — do not invent a second light pool.
-- Do not reintroduce unused project GIF/thumb assets under `public/assets/portfolio/` (org logos only).
+- Data from `portfolio/projects.json` (+ `scripts/syncPortfolio.mjs` from htmlportfolio). Collision = XZ circle push.
+- Arrow footprints: `hitRadius` (detect) vs `surfaceRadius` (plant). Do not use fat max-AABB as plant radius.
+- Approach → **text-only** card; **E** opens link; **I** inspects (`input.inspecting`). Antinous corpse **I**-revive is polled first and consumes I.
+- Key lights via `SpellLights` only. No project GIF/thumbs under `public/assets/portfolio/` (org logos only).
 
 ## Giant
 
-- Patrol waypoints; proximity starts attack clips; **move-lock** while `_attacking` / `_reacting`.
-- Hits require **melee contact**, not a fat remote radius:
-  - Timed `HIT_DELAY` / `HIT_WINDOW` mid-swing
-  - Player in front (`_facingPlayer`)
-  - Hand/forearm near player **or** body-press (`HIT_CONTACT` / `HAND_HIT_R` / `BODY_PRESS`)
-  - one-frame `didHit` + `giant_hit.mp3`; `main.js` calls `character.applyHit` + `avatar.playHit`
-- Arrow reacts: zone clips `Hit_Back` / `Hit_Waist` / `Hit_Chest` via `playHit(zone)`; pin large root-motion hips.
-- Every **5th** arrow land plays `giant_roar.mp3` (count always increments, even if react clip is busy).
-- Stuck arrows attach with `attachToBone` on the nearest body bone (not the root) so they ride attacks.
-- Foot stamps from stride distance matched to walk clip period; no continuous stance drag.
+- Patrol → proximity attack clips; **move-lock** while `_attacking` / `_reacting`.
+- Melee hits need **contact** in a timed window: front-facing + hand/forearm near player or body-press; then `didHit` + `giant_hit.mp3` → `character.applyHit` / `avatar.playHit`.
+- Arrow zones: `Hit_Back` / `Hit_Waist` / `Hit_Chest` via `playHit(zone)`; headshots = face-only (see combat).
+- Every **5th** arrow land → `giant_roar.mp3` (count always increments).
+- Stuck arrows: `attachToBone` nearest body bone. Foot stamps from stride distance, not continuous drag.
 
 ## Antinous ([`src/props/antinous.js`](src/props/antinous.js))
 
 - Spawns once after **5** sun-aimed shots (`dot(aim, sunDir) > cos(12°)` via `avatar.onShot` → `noteShot`).
-- Summon: `antinous_summon.mp3` (`beggars_line`) + `Fall_from_Bar` intro, then patrol ring.
-- Patrol-only (no melee). `Walking` → `Injured_Walk` after 10 hits. Dies at **20** with zone death + `antinous_death.mp3`.
-- Each land: `antinous_impact.mp3` + zone react. Rare `Fall_from_Bar` tantrum after first hit (cooldown ~10s).
-- On death: leave **corpse** in place. Approach + **I** revives (`pollRevive` consumes I before pillar inspect) with summon SFX + `Fall_from_Bar` at the corpse spot; hit count resets.
+- Summon: `antinous_summon.mp3` + `Fall_from_Bar`, then patrol ring (no melee).
+- `Walking` → `Injured_Walk` after 10 hits; dies at **20** (zone death + `antinous_death.mp3`).
+- Each land: impact SFX + zone react. **5th** hit also plays `antinous_will_not.mp3`. Head any facing → headshot SFX.
+- Rare `Fall_from_Bar` tantrum after first hit (~10s cooldown). Death leaves **corpse**; approach + **I** revives in place (hit count resets).
 - Crush `antinous.glb` before commit; CPU-skin + `prop` shaders.
 
 ## Assets
 
-- Models under `public/assets/odyssey/models/`. Crush before commit.
-- Prefer albedo-only crushed GLBs; do not reintroduce multi-map PBR on props without a shader plan.
+- Models under `public/assets/odyssey/models/`. Crush before commit. Albedo-only unless there is a shader plan for more maps.

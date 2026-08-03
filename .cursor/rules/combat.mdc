@@ -1,5 +1,5 @@
 ---
-description: Bow, arrows, aim parallax, and combat SFX conventions
+description: Bow aim parallax, arrow plants, headshots, and combat SFX
 globs: src/combat/**/*.js
 alwaysApply: false
 ---
@@ -8,20 +8,27 @@ alwaysApply: false
 
 ## Bow ([`src/combat/bow.js`](src/combat/bow.js))
 
-- Authored `bow.glb` on LeftHand world socket after `avatar.prepareSkeleton()`.
+- Authored `bow.glb` on LeftHand after `avatar.prepareSkeleton()`.
 - Look = camera `getLookDir` (crosshair). Equip on first shot; visible while `_busy === 'draw'`.
 - **Aim parallax (OTS):** do not fire parallel to look from an offset muzzle. `releaseShot(lookDir, cameraPos)` aims at a point on the look ray ~`AIM_AHEAD` past the muzzle’s depth along that ray, then fires `normalize(aimPoint − muzzle)`.
-- Wire `avatar.getCameraPos` from the camera rig. Bow SFX volume modest (~0.28).
+- Wire `avatar.getCameraPos` from the camera rig.
+- Base shoot volume ~`0.28`. After **5** released shots → **`0.35×` base** (quieter for long sessions).
 
 ## Arrows ([`src/combat/arrows.js`](src/combat/arrows.js))
 
-- Pool of **10** `arrow.glb` instances — visible in flight, stuck on impact (FIFO recycle).
-- Tip authored −Z → apply `_tipFix` (π yaw). Plant mid-shaft so tip penetrates ~`PENETRATE`.
-- Giant plant: snap to `GIANT_BODY_R`, then **`attachToBone`** nearest body bone (not root) so shafts ride attacks.
-- Pillar plant: detect with `hitRadius`, plant at tighter `surfaceRadius` (embed into shaft); parent to pillar root; play `arrow_impact_pillar.mp3`.
-- Ground plant: world-space stuck in sand. Giant impact SFX only on giant hits.
+- Pool of **10** `arrow.glb` — flight + stuck (FIFO recycle). Tip authored −Z → `_tipFix` yaw; plant mid-shaft with ~`PENETRATE`.
+- Giant plant: snap to `GIANT_BODY_R`, then **`attachToBone`** nearest body bone (not root).
+- Pillar plant: detect `hitRadius`, plant at tighter `surfaceRadius`; parent to pillar; `arrow_impact_pillar.mp3`.
+- Ground plant: world-space stuck in sand.
+
+## Headshots
+
+- Zone from impact local Y (+ facing for giant). Play `headshot.mp3` on `"head"`.
+- **Giant:** face band only (front + `localY >= GIANT_FACE_Y`). Back hits stay `"back"`.
+- **Antinous:** head band from **any** facing (`localY >= ANTI_HEAD_Y` / `a.headY`).
 
 ## SFX ([`src/combat/sfx.js`](src/combat/sfx.js))
 
-- `preloadSfx` / `playSfx` / `unlockAudio` — Web Audio buffer pool, HTMLAudio fallback.
-- Trim leading silence from one-shots so impact timing matches ballistics / melee window.
+- `preloadSfx` / `playSfx` / `unlockAudio` — Web Audio buffer pool.
+- Trim leading silence so impact timing matches ballistics / melee window.
+- Mono ~22 kHz / 64 kbps MP3 is enough — see `assets-policy`.

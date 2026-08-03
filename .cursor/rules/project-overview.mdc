@@ -1,11 +1,14 @@
 ---
-description: Portfolio dunes architecture, hard constraints, and domain layout
+description: Sand portfolio alpha architecture, hard constraints, and domain layout
 alwaysApply: true
 ---
 
-# Portfolio dunes (SNOWFLOW engine)
+# Ground particles (sand portfolio alpha)
 
 Walkable sand portfolio on WebGPU (Babylon.js + hand-written WGSL). **No WebGL fallback.** Sand-only in product mode: no surf, no castable spells. Authored GLB props + procedural terrain/deform/sky + bow combat.
+
+**Production:** https://groundparticles.vercel.app  
+**Gate (separate repo):** `~/Library/Mobile Documents/…/PROJECTS/htmlportfolio` — Access page CTAs: **Access** → classic portfolio; **Enter alpha** (ember glass) → this game. Do not label the CTA “dunes”.
 
 ## Layout
 
@@ -24,18 +27,18 @@ src/post/            TAA, bloom, shafts, DoF, SSR, tonemap
 src/shaders/         WGSL; lib/ = shared #includes
 ```
 
-Legacy procedural figure/cloth modules may still exist under `character/` but are **unwired** — live path is `controller` + `avatar` + `snowContact(..., null, spray)`.
+Legacy procedural figure/cloth under `character/` is **unwired** — live path is `controller` + `avatar` + `snowContact(..., null, spray)`.
 
 ## Hard constraints
 
-- **No allocation in the render loop.** Pre-size buffers/typed arrays; module-scope scratch (`_vel`, `_aim`). Never `new` per frame.
-- **Warm up behind the loading screen.** Materials / pipelines / SFX `warmUp()` / `whenReady()` / `preloadSfx` before first interactive frame. Boot UI is video + bar + phase text only (see `index.html` / `loading.js`).
-- **Keep assets lean.** Crush GLBs; no unused portfolio thumbs; sand detail only — see `assets-policy`.
-- **Keep systems modular.** New features go in their domain folder. Wire in `main.js` only for construction + per-frame order.
-- **Shared sand state.** Feet + props write deform via `DeformationField.brush()`. Lit props/terrain read `SpellLights` / `#include<snowSpellLights>`.
+- **No allocation in the render loop.** Pre-size buffers/typed arrays; module-scope scratch. Never `new` per frame.
+- **Warm up behind the loading screen.** Materials / pipelines / SFX before first interactive frame. Boot UI = video + bar + phase text only.
+- **Keep assets lean.** Crush GLBs; no unused thumbs; sand detail only — see `assets-policy`.
+- **Keep systems modular.** Domain folders own features; `main.js` is construction + call order only.
+- **Shared sand state.** Feet + props write deform via `DeformationField.brush()`. Lit surfaces read `SpellLights` / `#include<snowSpellLights>`.
 - **Rendering groups:** 0 = sky, 1 = opaque, 2 = alpha (spray). Depth auto-clear between groups is off on purpose.
 - Prefer lean changes. No fallbacks, catch-alls, or speculative branches.
-- **No physics engine.** Kinematic controller + circle push-outs + **melee contact** (hand/body proximity in a timed window).
+- **No physics engine.** Kinematic controller + circle push-outs + melee contact windows.
 
 ## Run
 

@@ -5,7 +5,7 @@ alwaysApply: true
 
 # Assets
 
-Runtime is procedural terrain + authored GLBs/media/SFX. Binaries live under `public/assets/…` (Vite-served).
+Runtime is procedural terrain + authored GLBs/media/SFX. Binaries under `public/assets/…` (Vite-served).
 
 ## Layout
 
@@ -16,47 +16,51 @@ public/assets/character/bow.glb                     # bow mesh (crush albedo)
 public/assets/character/arrow.glb                   # flight + stuck arrows
 public/assets/odyssey/models/*.glb                  # pillars, giant, antinous
 public/assets/portfolio/org/*                       # edu/job logos only
-public/assets/sfx/*.mp3                             # bow, impacts, giant/antinous VO
+public/assets/sfx/*.mp3                             # bow, impacts, headshot, giant/antinous VO
 public/assets/boot/loading_screen_background.mp4    # boot loop
 ```
 
-Env detail channels (match `detailBake`): RG = tangent normal XY (`n*0.5+0.5`), B = cavity, A = height. Missing → procedural bake. Sand-only: `PROFILES.snow.detailUrl = null` (no snow detail on disk).
+Env detail: RG = tangent normal XY (`n*0.5+0.5`), B = cavity, A = height. Missing → procedural bake. Product is sand-only (`PROFILES.snow.detailUrl = null` — no snow detail on disk).
 
 ## Size budget
 
-- Keep `public/assets` lean (on the order of **~10MB** total after crush). Room exists for more, but only ship what loads at runtime.
-- **Do not** commit unused portfolio project thumbs/GIFs — the pedestal card is text-only (`image: null` in `projects.json`).
-- `scripts/syncPortfolio.mjs` syncs project **text** + org logos; it must not reintroduce project thumbs.
-- Crush every new albedo GLB before commit (`node scripts/crushPillarTextures.mjs <path.glb>`).
-- Prefer 512 detail maps / short muted boot loops / trimmed SFX over raw exports.
+- Keep `public/assets` on the order of **~10MB** after crush. Only ship what loads at runtime.
+- **Do not** commit unused portfolio thumbs/GIFs — pedestal cards are text-only (`image: null`).
+- `scripts/syncPortfolio.mjs` syncs project **text** + org logos from htmlportfolio; must not reintroduce thumbs.
+- Crush every new albedo GLB (`node scripts/crushPillarTextures.mjs <path.glb>`).
+- Prefer 512 detail / short muted boot loops / trimmed SFX over raw exports.
+
+## Sibling repos
+
+- **htmlportfolio** = classic site + Access gate (**Enter alpha** → production URL) + source of `projects` sync.
+- **ground_particles** = this WebGPU alpha. Do not dump gate UI here.
 
 ## Environments
 
-- `S.environment` is the target (`snow` | `sand`); product default is sand.
-- `envProfile.js` eases `envBlend`; systems call `getLerped()` — do not hard-swap mid-frame or clear the deform buffer.
-- Do not rewrite spray for env switches — only tint/scale via profile.
+- `S.environment` target (`snow` | `sand`); product default sand.
+- `envProfile.js` eases `envBlend`; systems use `getLerped()` — no mid-frame hard-swap / deform clear.
+- Spray: tint/scale via profile only — do not rewrite the particle system for env switches.
 
 ## GLB pipeline
 
 - Prop/player shading samples **albedo only**. Crush drops extra maps, max edge **512**, JPEG.
-- New Meshy clips: merge animation accessors into the target GLB by **shared node indices**, then re-crush.
-- CPU-skin skinned props (`computeBonesUsingShaders = false`) so `prop` / `staticDepth` / `staticPrepass` stay rigid shaders.
+- New Meshy clips: merge animation accessors by **shared node indices**, then re-crush.
+- CPU-skin skinned props (`computeBonesUsingShaders = false`) so `prop` / `staticDepth` / `staticPrepass` stay rigid.
 
 ## Audio
 
-- Use `src/combat/sfx.js` (`preloadSfx` / `playSfx` / `unlockAudio`) — Web Audio, no per-frame alloc.
-- Trim leading silence from one-shots before commit (impact timing must match gameplay).
-- Keep clips small: **mono ~22 kHz / 64 kbps MP3** is enough for SFX (avoid 256–320 kbps masters).
-- Unlock on pointer-lock click / first shot.
+- `src/combat/sfx.js` — Web Audio, no per-frame alloc. Unlock on pointer-lock / first shot.
+- Trim leading silence on one-shots. Prefer **mono ~22 kHz / 64 kbps MP3**.
+- Combat VO set includes bow, pillar/arrow impact, headshot, giant hit/roar, Antinous summon/impact/death/will_not.
 
 ## Boot
 
-- `#boot` = looping muted video + progress bar + phase text only (no brand/title wordmark).
-- Phase copy is thematic (dunes/walker/pillars); weights live in `main.js` `loading.phase(...)`.
+- `#boot` = muted loop video + progress bar + phase text only (no brand wordmark).
+- Phase weights live in `main.js` `loading.phase(...)`.
 
 ## Git
 
-`.gitignore` ignores binaries by default; allow via `!public/assets/{environments,character,portfolio,odyssey,boot,sfx}/…` exceptions. Keep large sources out until crushed.
+`.gitignore` ignores binaries by default; allow via `!public/assets/{environments,character,portfolio,odyssey,boot,sfx}/…`. Keep large sources out until crushed.
 
 ## Rules
 
