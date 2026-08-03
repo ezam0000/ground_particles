@@ -14,8 +14,10 @@ alwaysApply: false
 ## Pedestals
 
 - Data from `portfolio/projects.json` (+ sync script). Collision = XZ circle push (`COLLIDE_RADIUS`).
-- Approach shows card; **E** opens link; **I** inspects (freezes character via `input.inspecting`).
+- Arrow footprints: `hitRadius` (detect, from min AABB half-extent) vs `surfaceRadius` (plant / embed). Do not use fat max-AABB as the plant radius.
+- Approach shows **text-only** card (no thumbs); **E** opens link; **I** inspects (freezes character via `input.inspecting`).
 - Key lights go through `SpellLights` — do not invent a second light pool.
+- Do not reintroduce unused project GIF/thumb assets under `public/assets/portfolio/` (org logos only).
 
 ## Giant
 
@@ -26,6 +28,7 @@ alwaysApply: false
   - Hand/forearm near player **or** body-press (`HIT_CONTACT` / `HAND_HIT_R` / `BODY_PRESS`)
   - one-frame `didHit` + `giant_hit.mp3`; `main.js` calls `character.applyHit` + `avatar.playHit`
 - Arrow reacts: zone clips `Hit_Back` / `Hit_Waist` / `Hit_Chest` via `playHit(zone)`; pin large root-motion hips.
+- Every **5th** arrow land plays `giant_roar.mp3` (count always increments, even if react clip is busy).
 - Stuck arrows attach with `attachToBone` on the nearest body bone (not the root) so they ride attacks.
 - Foot stamps from stride distance matched to walk clip period; no continuous stance drag.
 

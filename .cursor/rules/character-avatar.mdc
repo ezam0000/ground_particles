@@ -26,7 +26,7 @@ Do not revive unwired `figure.js` / `character.js` / cloth unless explicitly req
 - Clips by name regex: Walk / Run / Alert, `falling_down`, `Stand_Up3`, emotes, `Archery_Shot`.
 - `_busy`: `'hit' | 'emote' | 'draw' | null`. While set, `_syncAnim` must not overwrite with locomotion.
 - Hit: `falling_down` → `Stand_Up3` → Alert; unlock only after get-up. Not cancellable.
-- Draw: **R** (`drawPressed`) plays `Archery_Shot`; aim = camera `getLookDir`; release at `RELEASE_T`.
+- Draw: **R** (`drawPressed`) plays `Archery_Shot`; look = camera `getLookDir`; pass `getCameraPos` into `bow.releaseShot` so XZ matches the OTS crosshair; release at `RELEASE_T`.
 - Emote: **C** cycles `_emotes[]`; cancel on WASD/jump.
 - Crossfade with weights OK; **never** `goToFrame` every stride — only on walk↔run swaps.
 

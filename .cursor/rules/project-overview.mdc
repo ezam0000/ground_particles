@@ -29,7 +29,8 @@ Legacy procedural figure/cloth modules may still exist under `character/` but ar
 ## Hard constraints
 
 - **No allocation in the render loop.** Pre-size buffers/typed arrays; module-scope scratch (`_vel`, `_aim`). Never `new` per frame.
-- **Warm up behind the loading screen.** Materials / pipelines / SFX `warmUp()` / `whenReady()` / `preloadSfx` before first interactive frame.
+- **Warm up behind the loading screen.** Materials / pipelines / SFX `warmUp()` / `whenReady()` / `preloadSfx` before first interactive frame. Boot UI is video + bar + phase text only (see `index.html` / `loading.js`).
+- **Keep assets lean.** Crush GLBs; no unused portfolio thumbs; sand detail only — see `assets-policy`.
 - **Keep systems modular.** New features go in their domain folder. Wire in `main.js` only for construction + per-frame order.
 - **Shared sand state.** Feet + props write deform via `DeformationField.brush()`. Lit props/terrain read `SpellLights` / `#include<snowSpellLights>`.
 - **Rendering groups:** 0 = sky, 1 = opaque, 2 = alpha (spray). Depth auto-clear between groups is off on purpose.

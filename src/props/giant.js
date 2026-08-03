@@ -23,6 +23,10 @@ import { preloadSfx, playSfx, unlockAudio } from "../combat/sfx.js";
 const MODEL = "/assets/odyssey/models/giant.glb";
 const HIT_SFX = "/assets/sfx/giant_hit.mp3";
 const HIT_SFX_VOL = 0.65;
+const ROAR_SFX = "/assets/sfx/giant_roar.mp3";
+const ROAR_SFX_VOL = 0.72;
+/** Play a pain roar every N arrow hits. */
+const ROAR_EVERY = 5;
 
 /** World height of the giant, metres. Source mesh is ~3m tall. */
 const TARGET_HEIGHT = 3;
@@ -139,8 +143,11 @@ export class Giant {
 
         /** @type {import("@babylonjs/core/Bones/bone").Bone[]} */
         this._strikeBones = [];
+        /** Arrow impacts landed (drives every-Nth roar). */
+        this._arrowHits = 0;
         this._ready = this._load();
         void preloadSfx(HIT_SFX);
+        void preloadSfx(ROAR_SFX);
     }
 
     async _load() {
@@ -239,10 +246,17 @@ export class Giant {
     }
 
     /**
-     * Arrow hit react by zone. Ignores while already reacting.
+     * Arrow hit react by zone. Counts every land; roar every ROAR_EVERY.
+     * Ignores react clip while already reacting.
      * @param {"back"|"waist"|"chest"} zone
      */
     playHit(zone) {
+        this._arrowHits += 1;
+        if (this._arrowHits % ROAR_EVERY === 0) {
+            unlockAudio();
+            playSfx(ROAR_SFX, ROAR_SFX_VOL);
+        }
+
         if (this._reacting) return;
         let clip = this._hitWaist;
         if (zone === "back") clip = this._hitBack || clip;
@@ -465,6 +479,7 @@ export class Giant {
     async warmUp() {
         await this._ready;
         await preloadSfx(HIT_SFX);
+        await preloadSfx(ROAR_SFX);
         for (const { mat, mesh } of this._mats) {
             await whenReady(mat, mat.name, [mesh, false]);
         }

@@ -1,5 +1,5 @@
 ---
-description: Bow, arrows, and combat SFX conventions
+description: Bow, arrows, aim parallax, and combat SFX conventions
 globs: src/combat/**/*.js
 alwaysApply: false
 ---
@@ -9,15 +9,16 @@ alwaysApply: false
 ## Bow ([`src/combat/bow.js`](src/combat/bow.js))
 
 - Authored `bow.glb` on LeftHand world socket after `avatar.prepareSkeleton()`.
-- Aim = camera `getLookDir` (crosshair). Equip on first shot; visible while `_busy === 'draw'`.
-- `releaseShot` fires into `ArrowPool` + bow SFX (keep volume modest ~0.28).
+- Look = camera `getLookDir` (crosshair). Equip on first shot; visible while `_busy === 'draw'`.
+- **Aim parallax (OTS):** do not fire parallel to look from an offset muzzle. `releaseShot(lookDir, cameraPos)` aims at a point on the look ray ~`AIM_AHEAD` past the muzzle’s depth along that ray, then fires `normalize(aimPoint − muzzle)`.
+- Wire `avatar.getCameraPos` from the camera rig. Bow SFX volume modest (~0.28).
 
 ## Arrows ([`src/combat/arrows.js`](src/combat/arrows.js))
 
 - Pool of **10** `arrow.glb` instances — visible in flight, stuck on impact (FIFO recycle).
 - Tip authored −Z → apply `_tipFix` (π yaw). Plant mid-shaft so tip penetrates ~`PENETRATE`.
 - Giant plant: snap to `GIANT_BODY_R`, then **`attachToBone`** nearest body bone (not root) so shafts ride attacks.
-- Pillar plant: snap to pedestal radius, parent to pillar root; play `arrow_impact_pillar.mp3` (trimmed).
+- Pillar plant: detect with `hitRadius`, plant at tighter `surfaceRadius` (embed into shaft); parent to pillar root; play `arrow_impact_pillar.mp3`.
 - Ground plant: world-space stuck in sand. Giant impact SFX only on giant hits.
 
 ## SFX ([`src/combat/sfx.js`](src/combat/sfx.js))
