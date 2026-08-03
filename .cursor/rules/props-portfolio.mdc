@@ -38,8 +38,15 @@ alwaysApply: false
 
 - Hidden until sheep flock wiped → `Dive_Down_and_Land_2` then **calm patrol**.
 - **Headshot only** starts ~4.5s enrage (chase `Running` + one `Charged_Upward_Slash` if in range). Body hits = pain + react, no enrage.
-- Dies from **5 headshots inside 15s** (rolling queue). Death → `cyclops_death.mp3` + corpse → [`polyphemusCard.js`](src/props/polyphemusCard.js) (framed PNG, dim, lock + camera inspect; **E** dismisses).
+- Dies from **5 headshots inside 15s** (rolling queue). Death → `cyclops_death.mp3` + corpse → collectible drop (`polyphemus` card).
+
+## Collectible cards ([`src/props/cards/`](src/props/cards/))
+
+- Catalog + `localStorage` collection (`dunes.cards.v1`). Death drop awards Antinoös / Polyphemus.
+- Drop overlay: **F** flip lore, **E** continue. **B** opens card book (browse ←→, flip F, close B).
+- Antinous `onDeath` fires when the death clip ends (same as cyclops).
 
 ## Assets
 
-- Models under `public/assets/odyssey/models/` (`sheep.glb`, `cyclops.glb`, …). Crush before commit. Card: `odyssey/polyphemus_card.png`.
+- Models under `public/assets/odyssey/models/` (`sheep.glb`, `cyclops.glb`, …). Crush before commit.
+- Cards: `odyssey/antinous_card.png`, `odyssey/polyphemus_card.png`.

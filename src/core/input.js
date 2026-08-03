@@ -32,6 +32,14 @@ export const input = {
     emotePressed: false,
     /** Set for one frame on R — draw / shoot bow. */
     drawPressed: false,
+    /** Set for one frame on B — toggle Odyssey card book. */
+    bookPressed: false,
+    /** Set for one frame on F — flip active collectible card. */
+    flipPressed: false,
+    /** Set for one frame on ArrowLeft — card book browse. */
+    navLeftPressed: false,
+    /** Set for one frame on ArrowRight — card book browse. */
+    navRightPressed: false,
 
     locked: false,
 };
@@ -82,6 +90,10 @@ export function initInput(canvas) {
         if (e.code === "KeyI" && !e.repeat) input.inspectPressed = true;
         if (e.code === "KeyC" && !e.repeat) input.emotePressed = true;
         if (e.code === "KeyR" && !e.repeat) input.drawPressed = true;
+        if (e.code === "KeyB" && !e.repeat) input.bookPressed = true;
+        if (e.code === "KeyF" && !e.repeat) input.flipPressed = true;
+        if (e.code === "ArrowLeft" && !e.repeat) input.navLeftPressed = true;
+        if (e.code === "ArrowRight" && !e.repeat) input.navRightPressed = true;
         if (e.code === "Escape" && !e.repeat && input.inspecting) {
             input.inspectPressed = true; // same toggle path exits inspect
         }
@@ -129,4 +141,8 @@ export function endFrame() {
     input.inspectPressed = false;
     input.emotePressed = false;
     input.drawPressed = false;
+    input.bookPressed = false;
+    input.flipPressed = false;
+    input.navLeftPressed = false;
+    input.navRightPressed = false;
 }

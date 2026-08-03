@@ -129,6 +129,9 @@ export class Antinous {
         this._tantrumCd = 0;
         this._sunShots = 0;
 
+        /** @type {(() => void)|null} */
+        this.onDeath = null;
+
         /** Nearby-corpse revive prompt (DOM). */
         this._hint = document.createElement("div");
         this._hint.id = "antinous-revive";
@@ -380,6 +383,7 @@ export class Antinous {
         if (!clip) {
             this._corpse = true;
             this._dying = false;
+            if (this.onDeath) this.onDeath();
             return;
         }
         clip.onAnimationGroupEndObservable.clear();
@@ -388,6 +392,7 @@ export class Antinous {
             this._corpse = true;
             this._dying = false;
             this._anim = clip;
+            if (this.onDeath) this.onDeath();
         });
         clip.start(false, 1.0);
         this._anim = clip;

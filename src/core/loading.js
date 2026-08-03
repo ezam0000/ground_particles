@@ -6,6 +6,8 @@
  * browser so the DOM actually repaints between heavy synchronous steps.
  */
 
+import { start as startBootMusic, stop as stopBootMusic } from "./bootMusic.js";
+
 const bar = /** @type {HTMLElement} */ (document.getElementById("boot-bar"));
 const label = /** @type {HTMLElement} */ (document.getElementById("boot-phase"));
 const root = /** @type {HTMLElement} */ (document.getElementById("boot"));
@@ -13,6 +15,9 @@ const hint = /** @type {HTMLElement} */ (document.getElementById("hint"));
 const crosshair = /** @type {HTMLElement} */ (document.getElementById("crosshair"));
 
 let progress = 0;
+
+// Kick music as soon as the loading module is imported (races GPU warm-up).
+startBootMusic();
 
 /** Yield to the compositor so the loading screen repaints. */
 export function nextFrame() {
@@ -36,6 +41,7 @@ export async function done() {
     await new Promise((r) => setTimeout(r, 360));
     const vid = /** @type {HTMLVideoElement|null} */ (document.getElementById("boot-video"));
     if (vid) vid.pause();
+    void stopBootMusic({ fadeMs: 700 });
     root?.classList.add("gone");
     hint?.classList.add("show");
     crosshair?.classList.add("show");
@@ -46,6 +52,7 @@ export async function done() {
 }
 
 export function fail(message) {
+    void stopBootMusic({ fadeMs: 200 });
     root?.remove();
     const el = document.getElementById("nogpu");
     if (el) {

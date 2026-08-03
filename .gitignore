@@ -52,7 +52,8 @@ Thumbs.db
 !public/assets/odyssey/**/*.glb
 !public/assets/odyssey/**/*.gltf
 
-# boot loading screen background
+# boot loading screen background + loading music
 !public/assets/boot/**/*.mp4
 !public/assets/boot/**/*.webm
+!public/assets/boot/**/*.mp3
 .vercel

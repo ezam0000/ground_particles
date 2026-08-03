@@ -32,7 +32,8 @@ import { Giant } from "./props/giant.js";
 import { Antinous } from "./props/antinous.js";
 import { SheepFlock } from "./props/sheep.js";
 import { Cyclops } from "./props/cyclops.js";
-import { PolyphemusCard } from "./props/polyphemusCard.js";
+import { DropCard } from "./props/cards/dropCard.js";
+import { CardBook } from "./props/cards/cardBook.js";
 import { ArrowPool } from "./combat/arrows.js";
 import { Bow } from "./combat/bow.js";
 import { unlockAudio } from "./combat/sfx.js";
@@ -155,7 +156,8 @@ async function boot() {
     const antinous = new Antinous(scene, terrain, sky, shadows, depthPass, lights);
     const sheep = new SheepFlock(scene, terrain, sky, shadows, depthPass, lights);
     const cyclops = new Cyclops(scene, terrain, sky, shadows, depthPass, lights);
-    const polyCard = new PolyphemusCard();
+    const dropCard = new DropCard();
+    const cardBook = new CardBook();
 
     // Bow combat: pooled arrows + procedural bow on the player's hand.
     const arrows = new ArrowPool(scene, terrain, sky, shadows, lights);
@@ -181,12 +183,15 @@ async function boot() {
         const s0 = sheep.sheep[0];
         cyclops.spawn({ x: s0?.x ?? 28, z: s0?.z ?? -12 });
     };
-    cyclops.onDeath = () => {
+
+    const showDrop = (id, x, z) => {
         character.locked = true;
-        const gy = terrain.heightAt(cyclops.x, cyclops.z) + 1.6;
-        rig.beginInspect(cyclops.x, gy, cyclops.z);
-        polyCard.show();
+        const gy = terrain.heightAt(x, z) + 1.6;
+        rig.beginInspect(x, gy, z);
+        dropCard.show(id);
     };
+    cyclops.onDeath = () => showDrop("polyphemus", cyclops.x, cyclops.z);
+    antinous.onDeath = () => showDrop("antinous", antinous.x, antinous.z);
 
     // The rig needs ground heights to keep the spring arm above the sand.
     rig.groundAt = (x, z) => terrain.heightAt(x, z);
@@ -251,15 +256,30 @@ async function boot() {
         pollInput();
         updateEnv(dt);
 
-        if (polyCard.visible) {
+        if (dropCard.visible) {
+            if (input.flipPressed) dropCard.toggleFlip();
             if (input.openPressed) {
-                polyCard.hide();
+                dropCard.hide();
                 character.locked = false;
                 if (rig.inspecting) rig.endInspect();
             }
-        } else if (!antinous.pollRevive(character.position)) {
-            pedestals.pollInspect(rig, character.position);
+        } else if (cardBook.visible) {
+            if (input.flipPressed) cardBook.toggleFlip();
+            if (input.navLeftPressed) cardBook.browse(-1);
+            if (input.navRightPressed) cardBook.browse(1);
+            if (input.bookPressed) {
+                cardBook.close();
+                character.locked = false;
+            }
+        } else {
+            if (input.bookPressed) {
+                cardBook.open();
+                character.locked = true;
+            } else if (!antinous.pollRevive(character.position)) {
+                pedestals.pollInspect(rig, character.position);
+            }
         }
+
         character.update(dt, rig);
         pedestals.resolveCollision(character.position);
         giant.resolveCollision(character.position);
@@ -317,7 +337,7 @@ async function boot() {
 
     globalThis.DUNES = {
         engine, scene, rig, character, avatar, contact, spray, pedestals, giant,
-        antinous, sheep, cyclops, polyCard, bow, arrows,
+        antinous, sheep, cyclops, dropCard, cardBook, bow, arrows,
         terrain, sky, shadows, post, depthPass,
         S, input,
     };

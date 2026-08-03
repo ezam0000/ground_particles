@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Ken Burns preview — Polyphemus</title>
+<style>
+  :root {
+    --ink: #050403;
+    --frost: #f0e2c8;
+    --accent: #e09a4a;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: var(--ink);
+    color: var(--frost);
+    font-family: ui-sans-serif, "Segoe UI", system-ui, sans-serif;
+  }
+
+  #stage {
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    background: #000;
+  }
+
+  /* Identical full-bleed boxes; each drifts its own way */
+  .layer {
+    position: absolute;
+    inset: -12%;
+    width: auto;
+    height: auto;
+  }
+
+  .layer img,
+  .layer canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+    display: block;
+    pointer-events: none;
+  }
+
+  .layer-bg {
+    z-index: 0;
+    transform-origin: 35% 50%;
+    will-change: transform;
+    animation: kbBg 24s ease-in-out infinite alternate;
+  }
+
+  .layer-cyclops {
+    z-index: 1;
+    transform-origin: 40% 60%;
+    will-change: transform;
+    animation: kbCyclops 24s ease-in-out infinite alternate;
+  }
+
+  /* Light opposite drifts — same scale envelope, mirrored translate */
+  @keyframes kbBg {
+    from { transform: scale(1.06) translate3d(-2.2%, 1.4%, 0); }
+    to   { transform: scale(1.18) translate3d(2.8%, -1.8%, 0); }
+  }
+
+  @keyframes kbCyclops {
+    from { transform: scale(1.06) translate3d(2.2%, -1.4%, 0); }
+    to   { transform: scale(1.18) translate3d(-2.8%, 1.8%, 0); }
+  }
+
+  .layer-glow {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    background:
+      radial-gradient(40% 45% at 22% 58%, rgba(255, 120, 40, 0.16), transparent 70%),
+      radial-gradient(30% 35% at 18% 62%, rgba(255, 180, 60, 0.08), transparent 65%);
+    mix-blend-mode: screen;
+    animation: glowPulse 5.5s ease-in-out infinite alternate;
+  }
+
+  @keyframes glowPulse {
+    from { opacity: 0.55; }
+    to { opacity: 1; }
+  }
+
+  .vignette {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    pointer-events: none;
+    background:
+      radial-gradient(70% 60% at 50% 45%, transparent 35%, rgba(0, 0, 0, 0.55) 100%),
+      linear-gradient(180deg, rgba(0, 0, 0, 0.35) 0%, transparent 22%, transparent 70%, rgba(0, 0, 0, 0.65) 100%);
+  }
+
+  .hud {
+    position: fixed;
+    left: 20px;
+    bottom: 20px;
+    z-index: 10;
+    max-width: min(420px, 86vw);
+    padding: 14px 16px;
+    border-radius: 10px;
+    background: rgba(8, 6, 4, 0.72);
+    border: 1px solid rgba(255, 220, 160, 0.14);
+    backdrop-filter: blur(8px);
+    font-size: 12px;
+    line-height: 1.5;
+    color: rgba(240, 226, 200, 0.88);
+  }
+
+  .hud strong {
+    display: block;
+    margin-bottom: 4px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    font-size: 10px;
+    color: var(--accent);
+  }
+
+  .controls {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    z-index: 10;
+    display: flex;
+    gap: 8px;
+  }
+
+  .controls button {
+    appearance: none;
+    border: 1px solid rgba(255, 220, 160, 0.28);
+    background: rgba(8, 6, 4, 0.75);
+    color: var(--frost);
+    font: inherit;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 10px 14px;
+    border-radius: 999px;
+    cursor: pointer;
+  }
+
+  .controls button:hover {
+    border-color: var(--accent);
+    color: #fff;
+  }
+
+  body.paused .layer-bg,
+  body.paused .layer-cyclops,
+  body.paused .layer-glow {
+    animation-play-state: paused;
+  }
+
+  body.solo-bg .layer-cyclops { visibility: hidden; }
+  body.solo-cyclops .layer-bg { opacity: 0.15; }
+</style>
+</head>
+<body>
+  <div id="stage" aria-label="Ken Burns loading preview">
+    <div class="layer layer-bg">
+      <img
+        src="/assets/boot/kenburns_bg.png"
+        alt="Cave pasture background"
+        decoding="async"
+      />
+    </div>
+    <div class="layer layer-cyclops">
+      <!-- Filled by hard black-key (opaque figure, no screen blend) -->
+      <canvas id="cyclops-canvas" aria-label="Polyphemus"></canvas>
+    </div>
+    <div class="layer-glow" aria-hidden="true"></div>
+    <div class="vignette" aria-hidden="true"></div>
+  </div>
+
+  <div class="hud">
+    <strong>Ken Burns preview</strong>
+    Same-size stacked plates. Cyclops is fully opaque (hard black key only — no blend transparency).
+    Layers drift lightly in opposite directions.
+  </div>
+
+  <div class="controls">
+    <button type="button" id="btn-pause">Pause</button>
+    <button type="button" id="btn-bg">BG only</button>
+    <button type="button" id="btn-both">Both</button>
+    <button type="button" id="btn-cy">Cyclops focus</button>
+  </div>
+
+  <script>
+    /** Hard-key near-black → alpha 0; keep figure RGB fully opaque. */
+    async function keyCyclops() {
+      const src = "/assets/boot/kenburns_cyclops.png";
+      const img = new Image();
+      img.decoding = "async";
+      img.src = src;
+      await img.decode();
+
+      const canvas = document.getElementById("cyclops-canvas");
+      const w = img.naturalWidth;
+      const h = img.naturalHeight;
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      ctx.drawImage(img, 0, 0);
+      const frame = ctx.getImageData(0, 0, w, h);
+      const d = frame.data;
+      // Threshold: only near-black becomes transparent; figure stays solid.
+      const T = 18;
+      for (let i = 0; i < d.length; i += 4) {
+        if (d[i] <= T && d[i + 1] <= T && d[i + 2] <= T) {
+          d[i + 3] = 0;
+        } else {
+          d[i + 3] = 255;
+        }
+      }
+      ctx.putImageData(frame, 0, 0);
+    }
+
+    keyCyclops().catch((err) => console.error(err));
+
+    const body = document.body;
+    const pauseBtn = document.getElementById("btn-pause");
+    pauseBtn.addEventListener("click", () => {
+      body.classList.toggle("paused");
+      pauseBtn.textContent = body.classList.contains("paused") ? "Play" : "Pause";
+    });
+    document.getElementById("btn-bg").addEventListener("click", () => {
+      body.classList.add("solo-bg");
+      body.classList.remove("solo-cyclops");
+    });
+    document.getElementById("btn-cy").addEventListener("click", () => {
+      body.classList.add("solo-cyclops");
+      body.classList.remove("solo-bg");
+    });
+    document.getElementById("btn-both").addEventListener("click", () => {
+      body.classList.remove("solo-bg", "solo-cyclops");
+    });
+  </script>
+</body>
+</html>
