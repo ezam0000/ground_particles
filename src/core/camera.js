@@ -277,6 +277,20 @@ export class CameraRig {
         out.set(Math.cos(this.yaw), 0, -Math.sin(this.yaw));
         return out;
     }
+
+    /**
+     * Full look direction (includes pitch) — where the crosshair points.
+     * Writes a unit vector to `out`.
+     */
+    getLookDir(out) {
+        const cy = Math.cos(this.pitch);
+        out.set(
+            Math.sin(this.yaw) * cy,
+            -Math.sin(this.pitch),
+            Math.cos(this.yaw) * cy
+        );
+        return out;
+    }
 }
 
 // ------------------------------------------------------------------ helpers

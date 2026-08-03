@@ -35,6 +35,10 @@ const BLEND_DUR = 0.16;
  * Walk/run clips plant a few cm below the root origin otherwise.
  */
 const FOOT_CLEARANCE = 0.07;
+/** Arrow release into Archery_Shot (seconds). */
+const RELEASE_T = 0.28;
+
+const _aimDir = new Vector3();
 
 const _splits = new Vector4();
 const _fill = new Color3(0.55, 0.48, 0.38);
@@ -84,12 +88,20 @@ export class PlayerAvatar {
         /** @type {import("@babylonjs/core/Animations/animationGroup").AnimationGroup[]} */
         this._emotes = [];
         this._emoteI = 0;
+        /** @type {import("@babylonjs/core/Animations/animationGroup").AnimationGroup|null} */
+        this._draw = null;
+        this._drawT = 0;
+        this._shotFired = false;
+        /** @type {import("../combat/bow.js").Bow|null} */
+        this.bow = null;
+        /** @type {(() => Vector3)|null} look-dir provider from camera (crosshair) */
+        this.getAimDir = null;
         this._active = null;
         /** Clip fading out during a crossfade (null when idle). */
         this._fadeOut = null;
         this._blendT = 1;
         /**
-         * 'hit' | 'emote' | null — locomotion sync is suspended while set.
+         * 'hit' | 'emote' | 'draw' | null — locomotion sync is suspended while set.
          * Hit cannot be cancelled; emote cancels on move/jump.
          */
         this._busy = null;
@@ -157,14 +169,20 @@ export class PlayerAvatar {
         this._emotes = groups.filter((g) =>
             /gangnam|emote|groove/i.test(g.name)
         );
+        this._draw =
+            groups.find((g) => /archery_shot|archery shot/i.test(g.name)) ||
+            groups.find((g) => /archery/i.test(g.name)) ||
+            null;
         if (!this._walk && groups[0]) this._walk = groups[0];
 
         // Fall/get-up clips ship with Hips XZ root motion; pin to idle rest so
         // the mesh doesn't teleport when chaining fall → stand-up.
+        // Archery_Shot has a small XZ drift — pin the same way.
         const rest = this._hipsRestXZ(this._idle || this._walk);
         if (rest) {
             if (this._fall) this._pinHipsXZ(this._fall, rest.x, rest.z);
             if (this._getUp) this._pinHipsXZ(this._getUp, rest.x, rest.z);
+            if (this._draw) this._pinHipsXZ(this._draw, rest.x, rest.z);
         }
 
         // Initial state: alert at rest (basic game design).
@@ -439,6 +457,89 @@ export class PlayerAvatar {
         }
     }
 
+    /**
+     * Hand bone for parenting props (CPU-skinned skeleton).
+     * @param {string} name
+     * @returns {import("@babylonjs/core/Bones/bone").Bone|null}
+     */
+    getHandBone(name) {
+        const sk = this._mesh?.skeleton;
+        if (!sk) return null;
+        return sk.bones.find((b) => b.name === name) || null;
+    }
+
+    /** Refresh bone absolute matrices after animation (required for hand sockets). */
+    prepareSkeleton() {
+        const sk = this._mesh?.skeleton;
+        if (sk) sk.computeAbsoluteTransforms();
+    }
+
+    /**
+     * @param {string} name
+     * @param {Vector3} out
+     */
+    getHandWorldPos(name, out) {
+        const bone = this.getHandBone(name);
+        if (!bone || !this._mesh) return false;
+        bone.getAbsolutePositionToRef(this._mesh, out);
+        return true;
+    }
+
+    /** Fire bow: fast Archery_Shot, infinite ammo, aim = crosshair look dir. */
+    playDraw() {
+        if (this._busy === "hit" || this._busy === "draw") return;
+        if (this.controller.airborne || input.inspecting) return;
+        const clip = this._draw;
+        if (!clip) return;
+
+        if (this._busy === "emote") this._clearBusyObservers(this._active);
+        this._busy = "draw";
+        this.controller.locked = true;
+        this.controller.velocity.x = 0;
+        this.controller.velocity.z = 0;
+        this._drawT = 0;
+        this._shotFired = false;
+        this._faceAim();
+        this._clearBusyObservers(clip);
+        clip.onAnimationGroupEndObservable.addOnce(() => {
+            if (this._busy !== "draw") return;
+            if (this.bow) this.bow.equip();
+            this._endBusy();
+        });
+        this._hardCut(clip, 1);
+        if (this.bow) {
+            this.bow.equip();
+            this.bow.setVisible(true);
+        }
+    }
+
+    /** Face the crosshair so the archery clip aims forward (not back / sideways). */
+    _faceAim() {
+        if (this.getAimDir) _aimDir.copyFrom(this.getAimDir());
+        else {
+            const f = this.controller.facing;
+            _aimDir.set(Math.sin(f), 0, Math.cos(f));
+        }
+        this.controller.facing = Math.atan2(_aimDir.x, _aimDir.z);
+    }
+
+    _tickDraw(dt) {
+        if (this._busy !== "draw") return;
+        this._faceAim();
+        this._drawT += Math.max(dt, 0);
+        if (!this._shotFired && this._drawT >= RELEASE_T) {
+            this._shotFired = true;
+            if (this.getAimDir) _aimDir.copyFrom(this.getAimDir());
+            else {
+                const f = this.controller.facing;
+                _aimDir.set(Math.sin(f), 0.08, Math.cos(f));
+            }
+            if (_aimDir.lengthSquared() < 1e-6) _aimDir.set(0, 0.08, 1);
+            _aimDir.normalize();
+            this.bow?.releaseShot(_aimDir);
+        }
+    }
+
     /** Stop fade-out leftovers and clear end observers on a group. */
     _clearBusyObservers(group) {
         if (group) group.onAnimationGroupEndObservable.clear();
@@ -464,9 +565,11 @@ export class PlayerAvatar {
             this.controller.locked = false;
             return;
         }
-        if (this._busy === "emote") {
+        if (this._busy === "emote" || this._busy === "draw") {
             this._clearBusyObservers(this._active);
+            this._shotFired = true;
         }
+        this.bow?.setVisible(false);
         this._busy = "hit";
         this.controller.locked = true;
         this._clearBusyObservers(this._fall);
@@ -666,9 +769,18 @@ export class PlayerAvatar {
         if (input.emotePressed && !this._busy && !this.controller.airborne && !input.inspecting) {
             this.playEmote();
         }
+        if (input.drawPressed && !this._busy && !this.controller.airborne && !input.inspecting) {
+            this.playDraw();
+        }
+        this._tickDraw(dt);
 
         this._syncAnim(dt);
         this._placeRoot(dt);
+        if (this.bow) {
+            // Only while drawing — idle bone sockets aren't reliable, so we hide
+            // the grip-cheat bow between shots instead of leaving it floating.
+            this.bow.setVisible(this._busy === "draw");
+        }
 
         const sky = this.sky;
         _splits.set(

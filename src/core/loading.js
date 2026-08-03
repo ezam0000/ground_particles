@@ -10,6 +10,7 @@ const bar = /** @type {HTMLElement} */ (document.getElementById("boot-bar"));
 const label = /** @type {HTMLElement} */ (document.getElementById("boot-phase"));
 const root = /** @type {HTMLElement} */ (document.getElementById("boot"));
 const hint = /** @type {HTMLElement} */ (document.getElementById("hint"));
+const crosshair = /** @type {HTMLElement} */ (document.getElementById("crosshair"));
 
 let progress = 0;
 
@@ -35,6 +36,7 @@ export async function done() {
     await new Promise((r) => setTimeout(r, 360));
     root?.classList.add("gone");
     hint?.classList.add("show");
+    crosshair?.classList.add("show");
     setTimeout(() => {
         root?.remove();
         hint?.classList.remove("show");

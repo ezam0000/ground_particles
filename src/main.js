@@ -29,12 +29,16 @@ import { DepthPass } from "./render/depthPass.js";
 import { PostChain } from "./post/postChain.js";
 import { Pedestals } from "./portfolio/pedestals.js";
 import { Giant } from "./props/giant.js";
+import { ArrowPool } from "./combat/arrows.js";
+import { Bow } from "./combat/bow.js";
+import { unlockAudio } from "./combat/sfx.js";
 import { updateEnv, getLerped } from "./core/envProfile.js";
 import { whenReady } from "./core/gpuUtil.js";
 import * as loading from "./core/loading.js";
 
 // ------------------------------------------------------- module-scope scratch
 const _vel = new Vector3();
+const _aim = new Vector3();
 
 async function boot() {
     const canvas = /** @type {HTMLCanvasElement} */ (document.getElementById("view"));
@@ -144,12 +148,24 @@ async function boot() {
     const pedestals = new Pedestals(scene, terrain, sky, shadows, depthPass, lights);
     const giant = new Giant(scene, terrain, sky, shadows, depthPass, lights);
 
+    // Bow combat: pooled arrows + procedural bow on the player's hand.
+    const arrows = new ArrowPool(scene, terrain, sky, shadows, lights);
+    arrows.giant = giant;
+    arrows.onGiantHit = (zone) => giant.playHit(zone);
+    const bow = new Bow(scene, sky, shadows, lights, arrows);
+    avatar.bow = bow;
+    avatar.getAimDir = () => {
+        rig.getLookDir(_aim);
+        return _aim;
+    };
+
     // The rig needs ground heights to keep the spring arm above the sand.
     rig.groundAt = (x, z) => terrain.heightAt(x, z);
 
     const post = new PostChain(scene, rig.camera, depthPass, sky);
 
     initInput(canvas);
+    canvas.addEventListener("click", () => unlockAudio());
 
     // ------------------------------------------------------------- warm-up
     // Everything that can compile, compiles here — behind the loading screen.
@@ -160,6 +176,9 @@ async function boot() {
     terrain.update(rig.camera.position, character.position, 0);
     avatar.update(0, rig.camera.position, getLerped());
     await avatar.warmUp();
+    bow.attach(avatar);
+    await bow.warmUp();
+    await arrows.warmUp();
     spray.update(0, rig.camera.position);
     await spray.warmUp();
     pedestals.update(character.position, rig.camera.position, getLerped());
@@ -225,6 +244,9 @@ async function boot() {
             avatar.playHit();
         }
         avatar.update(dt, rig.camera.position, getLerped());
+        rig.getLookDir(_aim);
+        bow.update(dt, rig.camera.position, getLerped(), _aim);
+        arrows.update(dt, rig.camera.position, getLerped());
         // Pedestals just refilled the light pool — push it into the rest of the scene.
         for (const m of [terrain.material, spray.material]) {
             lights.apply(m);
@@ -242,6 +264,7 @@ async function boot() {
 
     globalThis.DUNES = {
         engine, scene, rig, character, avatar, contact, spray, pedestals, giant,
+        bow, arrows,
         terrain, sky, shadows, post, depthPass,
         S, input,
     };

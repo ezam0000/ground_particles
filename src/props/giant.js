@@ -99,6 +99,13 @@ export class Giant {
         /** @type {import("@babylonjs/core/Animations/animationGroup").AnimationGroup[]} */
         this._attacks = [];
         /** @type {import("@babylonjs/core/Animations/animationGroup").AnimationGroup|null} */
+        this._hitBack = null;
+        /** @type {import("@babylonjs/core/Animations/animationGroup").AnimationGroup|null} */
+        this._hitWaist = null;
+        /** @type {import("@babylonjs/core/Animations/animationGroup").AnimationGroup|null} */
+        this._hitChest = null;
+        this._reacting = false;
+        /** @type {import("@babylonjs/core/Animations/animationGroup").AnimationGroup|null} */
         this._anim = null;
         this._attacking = false;
         this._attackCd = 1.5;
@@ -172,7 +179,14 @@ export class Giant {
         const groups = result.animationGroups || [];
         for (const g of groups) g.stop();
         this._walk = groups.find((g) => /walk/i.test(g.name)) || groups[0] || null;
-        this._attacks = groups.filter((g) => /attack/i.test(g.name));
+        this._attacks = groups.filter(
+            (g) => /attack/i.test(g.name) && !/hit/i.test(g.name)
+        );
+        this._hitBack = groups.find((g) => /hit_back|hit in back/i.test(g.name)) || null;
+        this._hitWaist = groups.find((g) => /hit_waist/i.test(g.name)) || null;
+        this._hitChest = groups.find((g) => /hit_chest|hit_reaction/i.test(g.name)) || null;
+        // Runtime safety: pin Hit_Back hips XZ if keys still drift.
+        if (this._hitBack) this._pinHipsXZ(this._hitBack);
         if (this._walk) {
             this._walk.start(true, WALK_ANIM_SPEED);
             this._anim = this._walk;
@@ -196,6 +210,58 @@ export class Giant {
             this._anim = this._walk;
         }
         this._attacking = false;
+        this._reacting = false;
+    }
+
+    /**
+     * Arrow hit react by zone. Ignores while already reacting.
+     * @param {"back"|"waist"|"chest"} zone
+     */
+    playHit(zone) {
+        if (this._reacting) return;
+        let clip = this._hitWaist;
+        if (zone === "back") clip = this._hitBack || clip;
+        else if (zone === "chest") clip = this._hitChest || clip;
+        else clip = this._hitWaist || this._hitChest || this._hitBack;
+        if (!clip) return;
+
+        if (this._anim) this._anim.stop();
+        this._attacking = false;
+        this._reacting = true;
+        this._hitLanded = true; // suppress player hit mid-swing if interrupted
+        clip.onAnimationGroupEndObservable.clear();
+        clip.onAnimationGroupEndObservable.addOnce(() => {
+            this._playWalk();
+        });
+        clip.start(false, 1.0);
+        this._anim = clip;
+    }
+
+    /** Pin Hips XZ keys to first frame (safety for root-motion hit clips). */
+    _pinHipsXZ(group) {
+        let restX = 0;
+        let restZ = 0;
+        let found = false;
+        for (const ta of group.targetedAnimations) {
+            if (!/hips/i.test(ta.target?.name || "")) continue;
+            if (ta.animation.targetProperty !== "position") continue;
+            const keys = ta.animation.getKeys();
+            if (!keys.length) continue;
+            restX = keys[0].value.x;
+            restZ = keys[0].value.z;
+            found = true;
+            break;
+        }
+        if (!found) return;
+        for (const ta of group.targetedAnimations) {
+            if (!/hips/i.test(ta.target?.name || "")) continue;
+            if (ta.animation.targetProperty !== "position") continue;
+            const keys = ta.animation.getKeys();
+            for (let i = 0; i < keys.length; i++) {
+                keys[i].value.x = restX;
+                keys[i].value.z = restZ;
+            }
+        }
     }
 
     /**
@@ -204,7 +270,7 @@ export class Giant {
      * @param {number} playerZ
      */
     _startAttack(playerX, playerZ) {
-        if (!this._attacks.length || this._attacking) return;
+        if (!this._attacks.length || this._attacking || this._reacting) return;
         const clip = this._attacks[(Math.random() * this._attacks.length) | 0];
         if (this._anim) this._anim.stop();
         this._attacking = true;
@@ -379,7 +445,7 @@ export class Giant {
         const inRange = pDist < ATTACK_RANGE;
 
         // Proximity attack: when close and off cooldown, randomly swing.
-        if (!this._attacking && inRange && this._attackCd <= 0 && this._attacks.length) {
+        if (!this._attacking && !this._reacting && inRange && this._attackCd <= 0 && this._attacks.length) {
             // Higher chance the closer you are (always fire under ~4m).
             const chance = pDist < 4 ? 1 : 0.35 + (1 - pDist / ATTACK_RANGE) * 0.5;
             if (Math.random() < chance * Math.min(1, dt * 8)) {
@@ -388,7 +454,7 @@ export class Giant {
         }
 
         // Timed hit window mid-swing (not on clip end, not ATTACK_RANGE).
-        if (this._attacking) {
+        if (this._attacking && !this._reacting) {
             this._hitT += Math.max(dt, 0);
             if (
                 !this._hitLanded &&
@@ -401,8 +467,8 @@ export class Giant {
             }
         }
 
-        // Patrol only while not attacking (move lock during swing).
-        if (!this._attacking && dt > 0 && PATROL.length > 1) {
+        // Patrol only while not attacking / reacting.
+        if (!this._attacking && !this._reacting && dt > 0 && PATROL.length > 1) {
             const target = PATROL[this._patrolI];
             let dx = target.x - this.x;
             let dz = target.z - this.z;
@@ -418,16 +484,18 @@ export class Giant {
                 this.yaw = angleDamp(this.yaw, Math.atan2(dx, dz), 8, dt);
             }
             this._placeRoot(this._root, dt);
-        } else if (this._attacking) {
-            // Ease face toward the player during the swing — no snap.
-            const want = Math.atan2(pdx, pdz);
-            this.yaw = angleDamp(this.yaw, want, 6, dt);
+        } else if (this._attacking || this._reacting) {
+            // Ease face toward the player during the swing / keep plant during react.
+            if (this._attacking) {
+                const want = Math.atan2(pdx, pdz);
+                this.yaw = angleDamp(this.yaw, want, 6, dt);
+            }
             this._placeRoot(this._root, dt);
         } else {
             this._placeRoot(this._root, dt);
         }
 
-        if (!this._attacking) this._stampFeet();
+        if (!this._attacking && !this._reacting) this._stampFeet();
 
         const sky = this.sky;
         _splits.set(
