@@ -5,7 +5,7 @@
     "title": "paperz",
     "description": "A calm, editorial reader for the day's newest arXiv papers, each explained in plain English by Claude.",
     "link": "https://paperz-chi.vercel.app/",
-    "image": "/assets/portfolio/paperz.gif",
+    "image": null,
     "isNew": true,
     "period": null
   },
@@ -15,7 +15,7 @@
     "title": "Portland Permit Pilot",
     "description": "Describe your Portland project in plain English. Pilot tells you what permits you need, what it costs, what documents to file, and how long it will take.",
     "link": "https://ppp-one-orpin.vercel.app/",
-    "image": "/assets/portfolio/ppp.jpg",
+    "image": null,
     "isNew": true,
     "period": null
   },
@@ -25,7 +25,7 @@
     "title": "MedCheck",
     "description": "Checks your prescriptions, OTCs, supplements, and the foods you eat for interactions, then explains what actually matters in plain language. Nothing gets stored.",
     "link": "https://medcheck-phi-five.vercel.app/",
-    "image": "/assets/portfolio/medcheck.webp",
+    "image": null,
     "isNew": true,
     "period": null
   },
@@ -35,7 +35,7 @@
     "title": "Margin",
     "description": "Shows writers what each paragraph is doing, how the piece speeds up or slows, and where the tone wanders off track.",
     "link": "https://margin-psi.vercel.app/",
-    "image": "/assets/portfolio/margin.jpg",
+    "image": null,
     "isNew": true,
     "period": null
   },
@@ -45,7 +45,7 @@
     "title": "Math 55",
     "description": "Study tool for Harvard's hardest math course. Abstract algebra, real analysis, complex analysis. Built it to survive it.",
     "link": "https://math55.vercel.app",
-    "image": "/assets/portfolio/math55.jpg",
+    "image": null,
     "isNew": false,
     "period": null
   },
@@ -55,7 +55,7 @@
     "title": "Evergreen Lab",
     "description": "Design agency I run. Web, print, brand. Fortune 500 clients. Data-informed, not data-boring.",
     "link": "https://www.evergreenlab.co",
-    "image": "/assets/portfolio/evergreen.jpg",
+    "image": null,
     "isNew": false,
     "period": null
   },
@@ -65,7 +65,7 @@
     "title": "Commercial Video Production",
     "description": "Short-form video that stops the scroll. Under 12 seconds, high impact. Brands, products, campaigns.",
     "link": null,
-    "image": "/assets/portfolio/video-production.gif",
+    "image": null,
     "isNew": false,
     "period": null
   },
@@ -75,7 +75,7 @@
     "title": "DJ Rank",
     "description": "Just my preferred DJs ranked from in-person performances.",
     "link": "https://djrank.vercel.app/",
-    "image": "/assets/portfolio/djrank.webp",
+    "image": null,
     "isNew": false,
     "period": null
   },
@@ -85,7 +85,7 @@
     "title": "ChessPiece - Autonomous Cyber Security Battles",
     "description": "Autonomous red team versus blue team. Adaptive attacks, adaptive defenses, real-time cyber combat simulation.",
     "link": "https://chesspiece-ai-battle-55ccd9ac6aca.herokuapp.com/",
-    "image": "/assets/portfolio/chesspiece.gif",
+    "image": null,
     "isNew": false,
     "period": null
   },
@@ -95,7 +95,7 @@
     "title": "Quantum Computing Simulator",
     "description": "3D quantum simulator. IBM Condor, Google Sycamore, Microsoft Majorana. Interactive and visual.",
     "link": "https://quantum-alpha.vercel.app",
-    "image": "/assets/portfolio/quantum.webp",
+    "image": null,
     "isNew": false,
     "period": null
   },
@@ -105,7 +105,7 @@
     "title": "Print Dimension Calculator",
     "description": "Print dimension calculator. Bleed, trim, safe margins. Simple tool, solves a real problem.",
     "link": "https://printcalc-nine.vercel.app/",
-    "image": "/assets/portfolio/printcalc.webp",
+    "image": null,
     "isNew": false,
     "period": null
   },
@@ -115,7 +115,7 @@
     "title": "RealEngine",
     "description": "Fast image generation on custom hardware. Text to image, chat included. Try it free.",
     "link": "https://loveaiart.com",
-    "image": "/assets/portfolio/realengine.webp",
+    "image": null,
     "isNew": false,
     "period": null
   },
@@ -125,7 +125,7 @@
     "title": "Medical Triage and Diagnosis Tool",
     "description": "Automated triage for clinicians. Web-based, fast, actionable.",
     "link": "https://neurovista-app-4888db0e0c58.herokuapp.com",
-    "image": "/assets/portfolio/neurovista.avif",
+    "image": null,
     "isNew": false,
     "period": null
   },
@@ -135,7 +135,7 @@
     "title": "3D Model Visualizer",
     "description": "Cloud 3D viewer. Upload, visualize, share. Handles complex models.",
     "link": "https://3-dview.vercel.app",
-    "image": "/assets/portfolio/3dviewer.gif",
+    "image": null,
     "isNew": false,
     "period": null
   },
@@ -145,7 +145,7 @@
     "title": "Local LLM Integration for iOS",
     "description": "Offline language model chat for iOS. MobileBERT on-device. No internet, still smart.",
     "link": "https://apps.apple.com/app/locally-ai-private-ai-chat/id6741426692",
-    "image": "/assets/portfolio/llmios.webp",
+    "image": null,
     "isNew": false,
     "period": null
   },
@@ -155,7 +155,7 @@
     "title": "Cross-Model video generation",
     "description": "Ultra-fast video generation. Diffusion distillation. Experimental but promising.",
     "link": null,
-    "image": "/assets/portfolio/videogen.gif",
+    "image": null,
     "isNew": false,
     "period": null
   }

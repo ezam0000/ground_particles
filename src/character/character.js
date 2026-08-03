@@ -17,7 +17,6 @@
 import { ShaderMaterial } from "@babylonjs/core/Materials/shaderMaterial";
 import { ShaderLanguage } from "@babylonjs/core/Materials/shaderLanguage";
 import { RawTexture } from "@babylonjs/core/Materials/Textures/rawTexture";
-import { Texture } from "@babylonjs/core/Materials/Textures/texture";
 import { Constants } from "@babylonjs/core/Engines/constants";
 import { Vector2, Vector3, Vector4, Color3 } from "@babylonjs/core/Maths/math";
 
@@ -28,8 +27,6 @@ import { S } from "../core/settings.js";
 import { whenReady, bindMatrixArray } from "../core/gpuUtil.js";
 import { CASCADE_COUNT } from "../render/shadows.js";
 import { SPELL_LIGHT_UNIFORMS } from "../spells/spellLights.js";
-
-const SHIRT_ALBEDO_URL = "/assets/character/shirt_albedo.png";
 
 /** Transform texture geometry. Width covers the widest of bones or panel cols. */
 const TEX_W = 48;
@@ -153,7 +150,7 @@ export class Character {
         this.clothMesh.material = this.clothMat;
         this.furMesh.material = this.furMat;
 
-        // 1×1 dark placeholder until /assets/character/shirt_albedo.png loads.
+        // 1×1 dark placeholder for shirtTex (no authored floral map).
         this._shirtFallback = RawTexture.CreateRGBATexture(
             new Uint8Array([28, 20, 14, 255]), 1, 1, scene,
             false, false,
@@ -163,7 +160,6 @@ export class Character {
         this.shirtTex = this._shirtFallback;
         this.bodyMat.setTexture("shirtTex", this.shirtTex);
         this.clothMat.setTexture("shirtTex", this.shirtTex);
-        this._loadShirtAlbedo();
 
         for (const m of [this.bodyMesh, this.clothMesh, this.furMesh]) {
             m.renderingGroupId = 1;
@@ -336,29 +332,6 @@ export class Character {
         this.clothMesh.isVisible = this._visible;
         // Fur stays off for the Hawaiian look.
         this.furMesh.isVisible = false;
-    }
-
-    /** Try to load the authored floral shirt map; keep the dark fallback on 404. */
-    _loadShirtAlbedo() {
-        const tex = new Texture(
-            SHIRT_ALBEDO_URL,
-            this.scene,
-            false,
-            false,
-            Constants.TEXTURE_TRILINEAR_SAMPLINGMODE,
-            () => {
-                tex.wrapU = Constants.TEXTURE_WRAP_ADDRESSMODE;
-                tex.wrapV = Constants.TEXTURE_WRAP_ADDRESSMODE;
-                tex.gammaSpace = true;
-                this.shirtTex = tex;
-                this.bodyMat.setTexture("shirtTex", tex);
-                this.clothMat.setTexture("shirtTex", tex);
-            },
-            () => {
-                console.warn("[character] shirt albedo missing:", SHIRT_ALBEDO_URL);
-                tex.dispose();
-            }
-        );
     }
 
     /**

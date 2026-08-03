@@ -10,17 +10,17 @@ Runtime is procedural terrain + authored GLBs/media/SFX. Binaries live under `pu
 ## Layout
 
 ```
-public/assets/environments/{snow,sand}/detail.png   # optional RGBA detail
+public/assets/environments/sand/detail.png          # optional RGBA detail (1024→512 ok)
 public/assets/character/main_man.glb                # player skin + anims
-public/assets/character/bow.glb                     # bow mesh
+public/assets/character/bow.glb                     # bow mesh (crush albedo)
 public/assets/character/arrow.glb                   # flight + stuck arrows
 public/assets/odyssey/models/*.glb                  # pillars, giant
-public/assets/portfolio/*                           # card thumbs / gifs
+public/assets/portfolio/org/*                       # edu/job logos (card is text-only)
 public/assets/sfx/*.mp3                             # bow, arrow/giant/pillar impacts
 public/assets/boot/loading_screen_background.mp4    # boot loop
 ```
 
-Env detail channels (match `detailBake`): RG = tangent normal XY (`n*0.5+0.5`), B = cavity, A = height. Missing → procedural bake for that side.
+Env detail channels (match `detailBake`): RG = tangent normal XY (`n*0.5+0.5`), B = cavity, A = height. Missing → procedural bake for that side. Sand-only product: `PROFILES.snow.detailUrl` is null (no snow detail on disk).
 
 ## Environments
 

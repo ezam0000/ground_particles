@@ -246,6 +246,8 @@ export class Terrain {
             ? await tryLoadDetail(this.scene, PROFILES.sand.detailUrl)
             : null;
 
+        // Active env uses authored detail when present; the other slot falls
+        // back to the procedural bake (sand-only product → snow slot = bake).
         this.detailTex = snowAuthored || this.detailBake;
         this.detailTexB = sandAuthored || this.detailBake;
         this.material.setTexture("detailTex", this.detailTex);

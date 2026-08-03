@@ -4,7 +4,7 @@
  *   node scripts/syncPortfolio.mjs
  *
  * Syncs:
- *   - projects  → src/portfolio/projects.json  + public/assets/portfolio/{id}.*
+ *   - projects  → src/portfolio/projects.json  (text only; no thumbs)
  *   - jobs      → src/portfolio/experience.json + public/assets/portfolio/org/*
  *   - schools   → src/portfolio/education.json  + public/assets/portfolio/org/*
  *
@@ -19,7 +19,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { homedir } from "node:os";
-import { basename, extname, join } from "node:path";
+import { extname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = join(fileURLToPath(import.meta.url), "../..");
@@ -96,32 +96,12 @@ const { projects } = await import(
     pathToFileURL(join(PORTFOLIO, "src/data/projects.ts")).href
 );
 
-function stillPath(p) {
-    const m = p.media;
-    switch (m.type) {
-        case "image": return m.src;
-        case "video": return m.gif;
-        case "dissolve": return m.dark || m.light;
-        default: return null;
-    }
-}
-
 mkdirSync(OUT_IMAGES, { recursive: true });
 mkdirSync(OUT_ORG, { recursive: true });
 
 const projectOut = [];
 for (const p of projects) {
-    const still = stillPath(p);
-    const src = still && findAsset(still);
-    let image = null;
-    if (src) {
-        const ext = sniffExt(src);
-        const name = p.id + ext;
-        copyFileSync(src, join(OUT_IMAGES, name));
-        image = "/assets/portfolio/" + name;
-    } else {
-        console.warn(`! ${p.id}: no usable still (${still ? basename(still) + " not found" : p.media.type})`);
-    }
+    // Pedestal card is text-only — do not copy project thumbs into the repo.
     const href = p.links?.[0]?.href;
     projectOut.push({
         id: p.id,
@@ -129,13 +109,13 @@ for (const p of projects) {
         title: p.title,
         description: p.description,
         link: href && href.startsWith("http") ? href : null,
-        image,
+        image: null,
         isNew: !!p.isNew,
         period: null,
     });
 }
 writeFileSync(OUT_PROJECTS, JSON.stringify(projectOut, null, 2) + "\n");
-console.log(`synced ${projectOut.length} projects`);
+console.log(`synced ${projectOut.length} projects (no thumbs)`);
 
 // ------------------------------------------------------------- experience
 

@@ -70,7 +70,7 @@ const SNOW = {
     exposure: 0.105,
     fogDensity: 0.0072,
     aerialStrength: 1.0,
-    detailUrl: "/assets/environments/snow/detail.png",
+    detailUrl: null,
 };
 
 /** @type {EnvProfile} */
