@@ -39,6 +39,8 @@ const _normal = new Vector3();
 const _yawQ = new Quaternion();
 const _tiltQ = new Quaternion();
 const _orient = new Quaternion();
+const _hipsA = new Quaternion();
+const _hipsB = new Quaternion();
 const _keyPos = new Float32Array(24);
 const _keyCol = new Float32Array(24);
 
@@ -152,6 +154,14 @@ export class PlayerAvatar {
         );
         if (!this._walk && groups[0]) this._walk = groups[0];
 
+        // Fall/get-up clips ship with Hips XZ root motion; pin to idle rest so
+        // the mesh doesn't teleport when chaining fall → stand-up.
+        const rest = this._hipsRestXZ(this._idle || this._walk);
+        if (rest) {
+            if (this._fall) this._pinHipsXZ(this._fall, rest.x, rest.z);
+            if (this._getUp) this._pinHipsXZ(this._getUp, rest.x, rest.z);
+        }
+
         // Initial state: alert at rest (basic game design).
         const start = this._idle || this._walk;
         if (start) {
@@ -163,27 +173,72 @@ export class PlayerAvatar {
         return root;
     }
 
+    /** Rest Hips XZ from an idle/walk clip (first translation key). */
+    _hipsRestXZ(group) {
+        if (!group) return null;
+        for (const ta of group.targetedAnimations) {
+            const target = ta.target;
+            const anim = ta.animation;
+            if (!target || !anim) continue;
+            if (!/hips/i.test(target.name || "")) continue;
+            if (anim.targetProperty !== "position") continue;
+            const keys = anim.getKeys();
+            if (!keys.length) continue;
+            const v = keys[0].value;
+            return { x: v.x, z: v.z };
+        }
+        return null;
+    }
+
+    /**
+     * Zero Hips XZ root motion in a clip (keep Y). Prevents fall→get-up teleports.
+     * @param {import("@babylonjs/core/Animations/animationGroup").AnimationGroup} group
+     * @param {number} x
+     * @param {number} z
+     */
+    _pinHipsXZ(group, x, z) {
+        for (const ta of group.targetedAnimations) {
+            const target = ta.target;
+            const anim = ta.animation;
+            if (!target || !anim) continue;
+            if (!/hips/i.test(target.name || "")) continue;
+            if (anim.targetProperty !== "position") continue;
+            const keys = anim.getKeys();
+            for (let i = 0; i < keys.length; i++) {
+                keys[i].value.x = x;
+                keys[i].value.z = z;
+            }
+        }
+    }
+
     _placeRoot(dt = 1 / 60) {
         const root = this._root;
         if (!root) return;
         const ch = this.controller;
         const x = ch.position.x;
         const z = ch.position.z;
-        this.terrain.normalAt(x, z, _normal);
-        // Soften extreme tilt so the mesh doesn't snap on every ripple.
-        _normal.x *= 0.55;
-        _normal.z *= 0.55;
-        const nLen = Math.hypot(_normal.x, _normal.y, _normal.z) || 1;
-        _normal.x /= nLen;
-        _normal.y /= nLen;
-        _normal.z /= nLen;
         Quaternion.RotationAxisToRef(Vector3.UpReadOnly, ch.facing, _yawQ);
-        Quaternion.FromUnitVectorsToRef(Vector3.UpReadOnly, _normal, _tiltQ);
-        _tiltQ.multiplyToRef(_yawQ, _orient);
-        if (!root.rotationQuaternion) root.rotationQuaternion = _orient.clone();
-        else {
-            const k = 1 - Math.exp(-10 * Math.max(dt, 1 / 120));
-            Quaternion.SlerpToRef(root.rotationQuaternion, _orient, k, root.rotationQuaternion);
+
+        // While knocked down, skip terrain tilt — dune normals twist a prone
+        // body and read as the character "shifting angle" mid get-up.
+        if (this._busy === "hit") {
+            if (!root.rotationQuaternion) root.rotationQuaternion = _yawQ.clone();
+            else root.rotationQuaternion.copyFrom(_yawQ);
+        } else {
+            this.terrain.normalAt(x, z, _normal);
+            _normal.x *= 0.55;
+            _normal.z *= 0.55;
+            const nLen = Math.hypot(_normal.x, _normal.y, _normal.z) || 1;
+            _normal.x /= nLen;
+            _normal.y /= nLen;
+            _normal.z /= nLen;
+            Quaternion.FromUnitVectorsToRef(Vector3.UpReadOnly, _normal, _tiltQ);
+            _tiltQ.multiplyToRef(_yawQ, _orient);
+            if (!root.rotationQuaternion) root.rotationQuaternion = _orient.clone();
+            else {
+                const k = 1 - Math.exp(-10 * Math.max(dt, 1 / 120));
+                Quaternion.SlerpToRef(root.rotationQuaternion, _orient, k, root.rotationQuaternion);
+            }
         }
         root.position.set(x, ch.position.y, z);
     }
@@ -411,17 +466,96 @@ export class PlayerAvatar {
         this._clearBusyObservers(this._getUp);
         this._fall.onAnimationGroupEndObservable.addOnce(() => {
             if (this._busy !== "hit") return;
+            // Kill leftover knockback so get-up doesn't slide/teleport.
+            this.controller.velocity.x = 0;
+            this.controller.velocity.z = 0;
+            this.controller._hitDecay = 0;
             if (this._getUp) {
                 this._clearBusyObservers(this._getUp);
                 this._getUp.onAnimationGroupEndObservable.addOnce(() => {
                     if (this._busy === "hit") this._endBusy();
                 });
-                this._crossfade(this._getUp, 1, this.controller);
+                // Align root yaw so get-up's first hips facing matches fall's last
+                // (clips are authored in different local orientations).
+                this._alignFacingToHips(this._fall, this._getUp);
+                // Hard cut — crossfading two different prone poses twists the body.
+                this._hardCut(this._getUp, 1);
             } else {
                 this._endBusy();
             }
         });
         this._crossfade(this._fall, 1, this.controller);
+    }
+
+    /**
+     * Read Hips rotation key from a group.
+     * @param {import("@babylonjs/core/Animations/animationGroup").AnimationGroup} group
+     * @param {"first"|"last"} which
+     * @param {Quaternion} out
+     */
+    _hipsQuat(group, which, out) {
+        out.copyFromFloats(0, 0, 0, 1);
+        if (!group) return false;
+        for (const ta of group.targetedAnimations) {
+            const target = ta.target;
+            const anim = ta.animation;
+            if (!target || !anim) continue;
+            if (!/hips/i.test(target.name || "")) continue;
+            if (anim.targetProperty !== "rotationQuaternion" && anim.targetProperty !== "rotation") {
+                continue;
+            }
+            const keys = anim.getKeys();
+            if (!keys.length) continue;
+            const v = keys[which === "last" ? keys.length - 1 : 0].value;
+            if (v.w != null) out.copyFrom(v);
+            else Quaternion.FromEulerVectorToRef(v, out);
+            return true;
+        }
+        return false;
+    }
+
+    /** Yaw (radians) around +Y from a quaternion. */
+    _quatYaw(q) {
+        // glTF/Babylon: yaw from quaternion
+        const siny = 2 * (q.w * q.y + q.x * q.z);
+        const cosy = 1 - 2 * (q.y * q.y + q.z * q.z);
+        return Math.atan2(siny, cosy);
+    }
+
+    /**
+     * Shift controller facing so `to` clip's first hips yaw matches `from`'s last.
+     * @param {import("@babylonjs/core/Animations/animationGroup").AnimationGroup} from
+     * @param {import("@babylonjs/core/Animations/animationGroup").AnimationGroup} to
+     */
+    _alignFacingToHips(from, to) {
+        if (!this._hipsQuat(from, "last", _hipsA)) return;
+        if (!this._hipsQuat(to, "first", _hipsB)) return;
+        const delta = this._quatYaw(_hipsA) - this._quatYaw(_hipsB);
+        this.controller.facing += delta;
+        if (this._root?.rotationQuaternion) {
+            Quaternion.RotationAxisToRef(Vector3.UpReadOnly, this.controller.facing, this._root.rotationQuaternion);
+        }
+    }
+
+    /**
+     * Instant clip swap (no blend) — used for fall→get-up.
+     * @param {import("@babylonjs/core/Animations/animationGroup").AnimationGroup} next
+     * @param {number} speed
+     */
+    _hardCut(next, speed) {
+        if (this._fadeOut) {
+            this._fadeOut.stop();
+            this._fadeOut = null;
+        }
+        if (this._active && this._active !== next) this._active.stop();
+        this._blendT = 1;
+        if (!next.isPlaying) next.start(false, speed);
+        else {
+            next.speedRatio = speed;
+            next.goToFrame(next.from);
+        }
+        next.setWeightForAllAnimatables(1);
+        this._active = next;
     }
 
     /** Cycle to the next emote and play it (locked until end or cancelled). */

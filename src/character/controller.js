@@ -144,7 +144,8 @@ export class CharacterController {
         this.velocity.x = dx * impulse;
         this.velocity.z = dz * impulse;
         this._hitDecay = 3.2;
-        this.facing = Math.atan2(-dx, -dz);
+        // Keep current facing — snapping toward the attacker fought the fall
+        // clip's authored orientation and made get-up look like an angle shift.
     }
 
     /**

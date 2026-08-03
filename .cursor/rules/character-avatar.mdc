@@ -31,3 +31,5 @@ Do not revive unwired `figure.js` / `character.js` / cloth unless explicitly req
 ## New clips
 
 Merge into `main_man.glb` (shared skeleton node indices), crush, then wire by name. Prefer one-shots with `onAnimationGroupEndObservable`.
+
+Fall / get-up / any clip with **Hips XZ root motion** must pin Hips XZ to idle rest (keep Y + rotations) or the mesh teleports when clips chain. Runtime `_pinHipsXZ` is a safety net; prefer baking the pin into the GLB.
