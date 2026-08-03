@@ -26,16 +26,19 @@ const SUMMON_SFX = "/assets/sfx/antinous_summon.mp3";
 const IMPACT_SFX = "/assets/sfx/antinous_impact.mp3";
 const DEATH_SFX = "/assets/sfx/antinous_death.mp3";
 const WILL_NOT_SFX = "/assets/sfx/antinous_will_not.mp3";
+const HEADSHOT_SFX = "/assets/sfx/headshot.mp3";
 const SUMMON_VOL = 0.7;
 const IMPACT_VOL = 0.55;
 const DEATH_VOL = 0.75;
 const WILL_NOT_VOL = 0.75;
+const HEADSHOT_VOL = 0.7;
 
 const TARGET_HEIGHT = 1.85;
 const COLLIDE_RADIUS = 0.42;
 const CHAR_RADIUS = 0.45;
 const BODY_R = 0.32;
 const CHEST_Y = 1.15;
+const HEAD_Y = 1.52;
 
 const WALK_SPEED = 1.15;
 const WALK_ANIM_SPEED = 1.0;
@@ -91,6 +94,7 @@ export class Antinous {
         this.radius = COLLIDE_RADIUS;
         this.bodyRadius = BODY_R;
         this.chestY = CHEST_Y;
+        this.headY = HEAD_Y;
 
         /** @type {{ x:number, z:number }[]} */
         this._patrol = [];
@@ -149,6 +153,7 @@ export class Antinous {
         void preloadSfx(IMPACT_SFX);
         void preloadSfx(DEATH_SFX);
         void preloadSfx(WILL_NOT_SFX);
+        void preloadSfx(HEADSHOT_SFX);
     }
 
     get alive() {
@@ -321,18 +326,19 @@ export class Antinous {
     }
 
     /**
-     * @param {"back"|"waist"|"chest"} zone
+     * @param {"back"|"waist"|"chest"|"head"} zone
      */
     playHit(zone) {
         if (!this.alive) return;
 
         this._arrowHits += 1;
         unlockAudio();
-        playSfx(IMPACT_SFX, IMPACT_VOL);
+        if (zone === "head") playSfx(HEADSHOT_SFX, HEADSHOT_VOL);
+        else playSfx(IMPACT_SFX, IMPACT_VOL);
         if (this._arrowHits === 5) playSfx(WILL_NOT_SFX, WILL_NOT_VOL);
 
         if (this._arrowHits >= HITS_TO_KILL) {
-            this._die(zone);
+            this._die(zone === "head" ? "chest" : zone);
             return;
         }
 
@@ -340,7 +346,7 @@ export class Antinous {
 
         let clip = this._hitWaist;
         if (zone === "back") clip = this._hitBack || clip;
-        else if (zone === "chest") clip = this._hitChest || clip;
+        else if (zone === "chest" || zone === "head") clip = this._hitChest || clip;
         else clip = this._hitWaist || this._hitChest || this._hitBack;
         if (!clip) return;
 
@@ -605,6 +611,7 @@ export class Antinous {
         await preloadSfx(IMPACT_SFX);
         await preloadSfx(DEATH_SFX);
         await preloadSfx(WILL_NOT_SFX);
+        await preloadSfx(HEADSHOT_SFX);
         for (const { mat, mesh } of this._mats) {
             await whenReady(mat, mat.name, [mesh, false]);
         }

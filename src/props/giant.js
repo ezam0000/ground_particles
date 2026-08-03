@@ -248,7 +248,7 @@ export class Giant {
     /**
      * Arrow hit react by zone. Counts every land; roar every ROAR_EVERY.
      * Ignores react clip while already reacting.
-     * @param {"back"|"waist"|"chest"} zone
+     * @param {"back"|"waist"|"chest"|"head"} zone
      */
     playHit(zone) {
         this._arrowHits += 1;
@@ -260,7 +260,7 @@ export class Giant {
         if (this._reacting) return;
         let clip = this._hitWaist;
         if (zone === "back") clip = this._hitBack || clip;
-        else if (zone === "chest") clip = this._hitChest || clip;
+        else if (zone === "chest" || zone === "head") clip = this._hitChest || clip;
         else clip = this._hitWaist || this._hitChest || this._hitBack;
         if (!clip) return;
 

@@ -31,8 +31,14 @@ const GIANT_BODY_R = 0.42;
 const PENETRATE = 0.16;
 /** Chest/head band starts this high above giant feet (m). */
 const CHEST_Y = 1.7;
+/** Giant face band (front only) — above this local Y is a headshot. */
+const GIANT_FACE_Y = 2.35;
+/** Antinous head band (any facing) — above this local Y is a headshot. */
+const ANTI_HEAD_Y = 1.52;
 const IMPACT_SFX = "/assets/sfx/arrow_impact.mp3";
 const IMPACT_VOL = 0.55;
+const HEADSHOT_SFX = "/assets/sfx/headshot.mp3";
+const HEADSHOT_VOL = 0.7;
 const PILLAR_SFX = "/assets/sfx/arrow_impact_pillar.mp3";
 const PILLAR_SFX_VOL = 0.55;
 /** Hit pad outside each pillar's visual hitRadius. */
@@ -99,11 +105,11 @@ export class ArrowPool {
         /** @type {ShaderMaterial[][]} */
         this._mats = [];
 
-        /** @type {((zone: "back"|"waist"|"chest", x:number, y:number, z:number) => void)|null} */
+        /** @type {((zone: "back"|"waist"|"chest"|"head", x:number, y:number, z:number) => void)|null} */
         this.onGiantHit = null;
         /** @type {import("../props/giant.js").Giant|null} */
         this.giant = null;
-        /** @type {((zone: "back"|"waist"|"chest", x:number, y:number, z:number) => void)|null} */
+        /** @type {((zone: "back"|"waist"|"chest"|"head", x:number, y:number, z:number) => void)|null} */
         this.onAntinousHit = null;
         /** @type {import("../props/antinous.js").Antinous|null} */
         this.antinous = null;
@@ -113,6 +119,7 @@ export class ArrowPool {
         this._arrowScale = 1;
         void preloadSfx(IMPACT_SFX);
         void preloadSfx(PILLAR_SFX);
+        void preloadSfx(HEADSHOT_SFX);
         this._ready = this._load();
     }
 
@@ -449,6 +456,11 @@ export class ArrowPool {
         playSfx(IMPACT_SFX, IMPACT_VOL);
     }
 
+    _playHeadshot() {
+        unlockAudio();
+        playSfx(HEADSHOT_SFX, HEADSHOT_VOL);
+    }
+
     _playPillarImpact() {
         unlockAudio();
         playSfx(PILLAR_SFX, PILLAR_SFX_VOL);
@@ -484,7 +496,7 @@ export class ArrowPool {
      * @param {number} pz
      * @param {number} vx
      * @param {number} vz
-     * @returns {"back"|"waist"|"chest"|null}
+     * @returns {"back"|"waist"|"chest"|"head"|null}
      */
     _classifyGiantHit(px, py, pz, vx, vz) {
         const g = this.giant;
@@ -502,6 +514,8 @@ export class ArrowPool {
         const fromBack = (vx / h) * fx + (vz / h) * fz > 0.25;
         if (fromBack) return "back";
         const localY = py - ground;
+        // Face only (front + head height).
+        if (localY >= GIANT_FACE_Y) return "head";
         return localY >= CHEST_Y ? "chest" : "waist";
     }
 
@@ -511,7 +525,7 @@ export class ArrowPool {
      * @param {number} pz
      * @param {number} vx
      * @param {number} vz
-     * @returns {"back"|"waist"|"chest"|null}
+     * @returns {"back"|"waist"|"chest"|"head"|null}
      */
     _classifyAntinousHit(px, py, pz, vx, vz) {
         const a = this.antinous;
@@ -524,12 +538,15 @@ export class ArrowPool {
         const top = ground + 2.2;
         if (py < ground - 0.15 || py > top) return null;
 
+        const localY = py - ground;
+        // Head band from any direction (front or back of skull).
+        if (localY >= (a.headY || ANTI_HEAD_Y)) return "head";
+
         const fx = Math.sin(a.yaw);
         const fz = Math.cos(a.yaw);
         const h = Math.hypot(vx, vz) || 1;
         const fromBack = (vx / h) * fx + (vz / h) * fz > 0.25;
         if (fromBack) return "back";
-        const localY = py - ground;
         const chestY = a.chestY || 1.15;
         return localY >= chestY ? "chest" : "waist";
     }
@@ -582,7 +599,8 @@ export class ArrowPool {
                         this._vx[i] / spd, this._vy[i] / spd, this._vz[i] / spd,
                         "giant"
                     );
-                    this._playImpact();
+                    if (zone === "head") this._playHeadshot();
+                    else this._playImpact();
                     if (this.onGiantHit) this.onGiantHit(zone, hx, hy, hz);
                     continue;
                 }
@@ -656,6 +674,7 @@ export class ArrowPool {
     async warmUp() {
         await this._ready;
         await preloadSfx(IMPACT_SFX);
+        await preloadSfx(HEADSHOT_SFX);
         await preloadSfx(PILLAR_SFX);
         for (let i = 0; i < POOL; i++) {
             this._setVisible(i, true);
