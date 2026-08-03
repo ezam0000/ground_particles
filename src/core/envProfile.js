@@ -83,10 +83,11 @@ const SAND = {
     glintGrazing: 0.35,
     // Keep master refill near 1 — sand uses the per-term muls below instead.
     refillMul: 1.0,
-    contactScale: 0.55,
-    bermScale: 1.4,
-    compressionScale: 1.15,
-    rimRoughness: 0.5,
+    // Dry sand: shallow soft soles, not deep powder punches.
+    contactScale: 0.38,
+    bermScale: 0.95,
+    compressionScale: 0.7,
+    rimRoughness: 0.78,
     // Collapse rates at refillRate = 1. Desert-dry but trails hold a few seconds.
     //   slump      berm avalanches into the hole (half-life ~2–3 s).
     //   depDecay   floor τ ≈ 3 s — paths read as owned ground.
@@ -98,7 +99,7 @@ const SAND = {
     depDecayMul: 120.0,
     bermDecayMul: 100.0,
     windInfillMul: 6.0,
-    sprayKickScale: 0.55,
+    sprayKickScale: 0.85,
     iceScale: 0.0,
     exposure: 0.14,
     fogDensity: 0.0045,

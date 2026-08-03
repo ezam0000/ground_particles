@@ -44,12 +44,16 @@ const SLOPE_PULL = 6.5;
 const UPHILL_DRAG = 0.55;
 
 /** Visual sink into recent foot trenches (metres), no GPU readback. */
-const SINK_MAX = 0.045;
-const SINK_PER_STEP = 0.018;
+const SINK_MAX = 0;
+const SINK_PER_STEP = 0;
 const SINK_DECAY = 4.5;
 
 /** Gait: metres of travel per full stride cycle, scaled by speed. */
 const STRIDE_BASE = 1.55;
+/** Plant earlier than phase 0 / 0.5 so stamps land with the visual foot, not after. */
+const PLANT_EARLY = 0.12;
+/** Stamp ahead of the pelvis along facing (metres) — boots plant in front. */
+const PLANT_AHEAD = 0.2;
 
 export class CharacterController {
     /**
@@ -364,26 +368,36 @@ export class CharacterController {
 
         if (this.speed < 0.15) return;
 
-        // Two plants per cycle, at phase 0.0 and 0.5.
-        const crossed =
-            (prev < 0.5 && this.gaitPhase >= 0.5) || this.gaitPhase < prev;
-        if (!crossed) return;
+        // Plants fire early vs 0 / 0.5 so stamps match the visible foot, not after.
+        const plantL = (1 - PLANT_EARLY) % 1;       // ~0.88 → left
+        const plantR = (0.5 - PLANT_EARLY + 1) % 1; // ~0.38 → right
+        const hitL = phaseCrossed(prev, this.gaitPhase, plantL);
+        const hitR = phaseCrossed(prev, this.gaitPhase, plantR);
+        if (!hitL && !hitR) return;
 
         this.footfall = true;
-        this.footIndex = this.gaitPhase < 0.5 ? 0 : 1;
+        this.footIndex = hitR ? 1 : 0;
         this.footImpact = Scalar.Clamp(0.35 + this.speed / RUN_SPEED, 0, 1.3);
         this.sink = Math.min(SINK_MAX, this.sink + SINK_PER_STEP * this.footImpact);
 
-        // Offset the plant to the correct side of the body.
+        // Side of the body + ahead of the pelvis along facing.
         const side = this.footIndex === 0 ? -0.17 : 0.17;
         const rx = Math.cos(this.facing);
         const rz = -Math.sin(this.facing);
+        const fx = Math.sin(this.facing);
+        const fz = Math.cos(this.facing);
         this.footPos.set(
-            this.position.x + rx * side,
+            this.position.x + rx * side + fx * PLANT_AHEAD,
             this.position.y,
-            this.position.z + rz * side
+            this.position.z + rz * side + fz * PLANT_AHEAD
         );
     }
+}
+
+/** True when gait phase advanced across threshold t (handles wrap). */
+function phaseCrossed(prev, cur, t) {
+    if (cur >= prev) return prev < t && cur >= t;
+    return prev < t || cur >= t;
 }
 
 // ------------------------------------------------------------------ helpers

@@ -30,6 +30,11 @@ const IDLE_SPEED = 0.28;
 const IDLE_DELAY = 0.25;
 /** Crossfade duration when swapping locomotion clips. */
 const BLEND_DUR = 0.16;
+/**
+ * Lift the skinned root so animated soles stay above the sand mesh.
+ * Walk/run clips plant a few cm below the root origin otherwise.
+ */
+const FOOT_CLEARANCE = 0.07;
 
 const _splits = new Vector4();
 const _fill = new Color3(0.55, 0.48, 0.38);
@@ -240,7 +245,9 @@ export class PlayerAvatar {
                 Quaternion.SlerpToRef(root.rotationQuaternion, _orient, k, root.rotationQuaternion);
             }
         }
-        root.position.set(x, ch.position.y, z);
+        // Hit reactions need the body on the sand; locomotion keeps soles clear.
+        const yOff = this._busy === "hit" ? 0 : FOOT_CLEARANCE;
+        root.position.set(x, ch.position.y + yOff, z);
     }
 
     _bindPropMaterial(mesh) {
