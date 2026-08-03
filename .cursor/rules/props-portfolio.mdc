@@ -32,6 +32,15 @@ alwaysApply: false
 - Stuck arrows attach with `attachToBone` on the nearest body bone (not the root) so they ride attacks.
 - Foot stamps from stride distance matched to walk clip period; no continuous stance drag.
 
+## Antinous ([`src/props/antinous.js`](src/props/antinous.js))
+
+- Spawns once after **5** sun-aimed shots (`dot(aim, sunDir) > cos(12°)` via `avatar.onShot` → `noteShot`).
+- Summon: `antinous_summon.mp3` (`beggars_line`) + `Fall_from_Bar` intro, then patrol ring.
+- Patrol-only (no melee). `Walking` → `Injured_Walk` after 10 hits. Dies at **20** with zone death + `antinous_death.mp3`.
+- Each land: `antinous_impact.mp3` + zone react. Rare `Fall_from_Bar` tantrum after first hit (cooldown ~10s).
+- On death: leave **corpse** in place. Approach + **I** revives (`pollRevive` consumes I before pillar inspect) with summon SFX + `Fall_from_Bar` at the corpse spot; hit count resets.
+- Crush `antinous.glb` before commit; CPU-skin + `prop` shaders.
+
 ## Assets
 
 - Models under `public/assets/odyssey/models/`. Crush before commit.

@@ -103,6 +103,10 @@ export class ArrowPool {
         this.onGiantHit = null;
         /** @type {import("../props/giant.js").Giant|null} */
         this.giant = null;
+        /** @type {((zone: "back"|"waist"|"chest", x:number, y:number, z:number) => void)|null} */
+        this.onAntinousHit = null;
+        /** @type {import("../props/antinous.js").Antinous|null} */
+        this.antinous = null;
         /** @type {import("../portfolio/pedestals.js").Pedestals|null} */
         this.pedestals = null;
 
@@ -302,14 +306,13 @@ export class ArrowPool {
 
     /**
      * Closest skinned bone to a world point — arrows ride attack/walk anims.
+     * @param {import("@babylonjs/core/Meshes/mesh").Mesh} mesh
      * @param {number} x
      * @param {number} y
      * @param {number} z
      * @returns {import("@babylonjs/core/Bones/bone").Bone|null}
      */
-    _closestGiantBone(x, y, z) {
-        const g = this.giant;
-        const mesh = g?._mesh;
+    _closestBone(mesh, x, y, z) {
         const sk = mesh?.skeleton;
         if (!sk) return null;
         sk.computeAbsoluteTransforms();
@@ -332,6 +335,11 @@ export class ArrowPool {
         return best;
     }
 
+    _closestGiantBone(x, y, z) {
+        const mesh = this.giant?._mesh;
+        return mesh ? this._closestBone(mesh, x, y, z) : null;
+    }
+
     /**
      * Freeze arrow at impact with tip penetration.
      * @param {number} i
@@ -341,7 +349,7 @@ export class ArrowPool {
      * @param {number} dx unit dir
      * @param {number} dy
      * @param {number} dz
-     * @param {"ground"|"giant"|"pillar"} kind
+     * @param {"ground"|"giant"|"pillar"|"antinous"} kind
      * @param {{ x:number, z:number, radius:number, root: import("@babylonjs/core/Meshes/transformNode").TransformNode }|null} [pillar]
      */
     _plant(i, x, y, z, dx, dy, dz, kind, pillar = null) {
@@ -360,6 +368,15 @@ export class ArrowPool {
             const horiz = Math.hypot(ox, oz) || 1;
             sx = g.x + (ox / horiz) * GIANT_BODY_R;
             sz = g.z + (oz / horiz) * GIANT_BODY_R;
+            sy = y;
+        } else if (kind === "antinous" && this.antinous) {
+            const a = this.antinous;
+            const bodyR = a.bodyRadius || 0.32;
+            const ox = x - a.x;
+            const oz = z - a.z;
+            const horiz = Math.hypot(ox, oz) || 1;
+            sx = a.x + (ox / horiz) * bodyR;
+            sz = a.z + (oz / horiz) * bodyR;
             sy = y;
         } else if (kind === "pillar" && pillar) {
             const ox = x - pillar.x;
@@ -393,9 +410,13 @@ export class ArrowPool {
         root.rotationQuaternion.copyFrom(_orient);
         root.position.copyFrom(_pos);
 
-        if (kind === "giant" && this.giant?._mesh) {
-            const mesh = this.giant._mesh;
-            const bone = this._closestGiantBone(_pos.x, _pos.y, _pos.z);
+        const host =
+            kind === "giant" ? this.giant
+            : kind === "antinous" ? this.antinous
+            : null;
+        if (host?._mesh) {
+            const mesh = host._mesh;
+            const bone = this._closestBone(mesh, _pos.x, _pos.y, _pos.z);
             if (bone) {
                 _boneWorld.copyFrom(bone.getAbsoluteTransform());
                 _boneWorld.multiplyToRef(mesh.getWorldMatrix(), _boneWorld);
@@ -411,8 +432,8 @@ export class ArrowPool {
                 const wm = mesh.getWorldMatrix().m;
                 const sxn = Math.hypot(wm[0], wm[1], wm[2]) || 1;
                 root.scaling.setAll(this._arrowScale / sxn);
-            } else if (this.giant._root) {
-                root.setParent(this.giant._root, true);
+            } else if (host._root) {
+                root.setParent(host._root, true);
             }
         } else if (kind === "pillar" && pillar?.root) {
             root.setParent(pillar.root, true);
@@ -485,6 +506,35 @@ export class ArrowPool {
     }
 
     /**
+     * @param {number} px
+     * @param {number} py
+     * @param {number} pz
+     * @param {number} vx
+     * @param {number} vz
+     * @returns {"back"|"waist"|"chest"|null}
+     */
+    _classifyAntinousHit(px, py, pz, vx, vz) {
+        const a = this.antinous;
+        if (!a?.alive) return null;
+        const dx = px - a.x;
+        const dz = pz - a.z;
+        const r = a.radius + HIT_RADIUS;
+        if (dx * dx + dz * dz > r * r) return null;
+        const ground = this.terrain.heightAt(a.x, a.z);
+        const top = ground + 2.2;
+        if (py < ground - 0.15 || py > top) return null;
+
+        const fx = Math.sin(a.yaw);
+        const fz = Math.cos(a.yaw);
+        const h = Math.hypot(vx, vz) || 1;
+        const fromBack = (vx / h) * fx + (vz / h) * fz > 0.25;
+        if (fromBack) return "back";
+        const localY = py - ground;
+        const chestY = a.chestY || 1.15;
+        return localY >= chestY ? "chest" : "waist";
+    }
+
+    /**
      * @param {number} dt
      * @param {Vector3} cameraPos
      * @param {ReturnType<import("../core/envProfile.js").getLerped>} env
@@ -534,6 +584,24 @@ export class ArrowPool {
                     );
                     this._playImpact();
                     if (this.onGiantHit) this.onGiantHit(zone, hx, hy, hz);
+                    continue;
+                }
+            }
+
+            if (this.antinous?.alive) {
+                const zone = this._classifyAntinousHit(
+                    this._px[i], this._py[i], this._pz[i],
+                    this._vx[i], this._vz[i]
+                );
+                if (zone) {
+                    const hx = this._px[i], hy = this._py[i], hz = this._pz[i];
+                    const spd = Math.hypot(this._vx[i], this._vy[i], this._vz[i]) || 1;
+                    this._plant(
+                        i, hx, hy, hz,
+                        this._vx[i] / spd, this._vy[i] / spd, this._vz[i] / spd,
+                        "antinous"
+                    );
+                    if (this.onAntinousHit) this.onAntinousHit(zone, hx, hy, hz);
                     continue;
                 }
             }

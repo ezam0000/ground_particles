@@ -14,9 +14,9 @@ public/assets/environments/sand/detail.png          # optional RGBA detail (512â
 public/assets/character/main_man.glb                # player skin + anims
 public/assets/character/bow.glb                     # bow mesh (crush albedo)
 public/assets/character/arrow.glb                   # flight + stuck arrows
-public/assets/odyssey/models/*.glb                  # pillars, giant
+public/assets/odyssey/models/*.glb                  # pillars, giant, antinous
 public/assets/portfolio/org/*                       # edu/job logos only
-public/assets/sfx/*.mp3                             # bow, impacts, giant hit/roar
+public/assets/sfx/*.mp3                             # bow, impacts, giant/antinous VO
 public/assets/boot/loading_screen_background.mp4    # boot loop
 ```
 

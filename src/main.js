@@ -29,6 +29,7 @@ import { DepthPass } from "./render/depthPass.js";
 import { PostChain } from "./post/postChain.js";
 import { Pedestals } from "./portfolio/pedestals.js";
 import { Giant } from "./props/giant.js";
+import { Antinous } from "./props/antinous.js";
 import { ArrowPool } from "./combat/arrows.js";
 import { Bow } from "./combat/bow.js";
 import { unlockAudio } from "./combat/sfx.js";
@@ -144,15 +145,18 @@ async function boot() {
 
     await loading.phase("raising the pillars", 0.62);
 
-    // Three plazas + the colossus south of spawn.
+    // Three plazas + the colossus south of spawn + Antinous (sun-summon).
     const pedestals = new Pedestals(scene, terrain, sky, shadows, depthPass, lights);
     const giant = new Giant(scene, terrain, sky, shadows, depthPass, lights);
+    const antinous = new Antinous(scene, terrain, sky, shadows, depthPass, lights);
 
     // Bow combat: pooled arrows + procedural bow on the player's hand.
     const arrows = new ArrowPool(scene, terrain, sky, shadows, lights);
     arrows.giant = giant;
+    arrows.antinous = antinous;
     arrows.pedestals = pedestals;
     arrows.onGiantHit = (zone) => giant.playHit(zone);
+    arrows.onAntinousHit = (zone) => antinous.playHit(zone);
     const bow = new Bow(scene, sky, shadows, lights, arrows);
     avatar.bow = bow;
     avatar.getAimDir = () => {
@@ -160,6 +164,7 @@ async function boot() {
         return _aim;
     };
     avatar.getCameraPos = () => rig.camera.position;
+    avatar.onShot = (aimDir) => antinous.noteShot(aimDir, character.position);
 
     // The rig needs ground heights to keep the spring arm above the sand.
     rig.groundAt = (x, z) => terrain.heightAt(x, z);
@@ -187,6 +192,8 @@ async function boot() {
     await pedestals.warmUp();
     giant.update(0, character.position, rig.camera.position, getLerped());
     await giant.warmUp();
+    antinous.update(0, character.position, rig.camera.position, getLerped());
+    await antinous.warmUp();
     await whenReady(sky.material, "sky material", [sky.mesh, false]);
     await depthPass.warmUp();
     post.update(0, rig.distance);
@@ -218,10 +225,13 @@ async function boot() {
         pollInput();
         updateEnv(dt);
 
-        pedestals.pollInspect(rig, character.position);
+        if (!antinous.pollRevive(character.position)) {
+            pedestals.pollInspect(rig, character.position);
+        }
         character.update(dt, rig);
         pedestals.resolveCollision(character.position);
         giant.resolveCollision(character.position);
+        antinous.resolveCollision(character.position);
         terrain.heightfield.clampToPlayArea(character.position);
         contact.update(dt);
 
@@ -245,6 +255,7 @@ async function boot() {
             character.applyHit(giant.x, giant.z);
             avatar.playHit();
         }
+        antinous.update(dt, character.position, rig.camera.position, getLerped());
         avatar.update(dt, rig.camera.position, getLerped());
         rig.getLookDir(_aim);
         bow.update(dt, rig.camera.position, getLerped(), _aim);
@@ -266,7 +277,7 @@ async function boot() {
 
     globalThis.DUNES = {
         engine, scene, rig, character, avatar, contact, spray, pedestals, giant,
-        bow, arrows,
+        antinous, bow, arrows,
         terrain, sky, shadows, post, depthPass,
         S, input,
     };

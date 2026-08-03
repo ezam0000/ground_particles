@@ -24,6 +24,8 @@ const SFX_URL = "/assets/sfx/bow.mp3";
 /** World height of the bow limbs (m). */
 const BOW_HEIGHT = 0.72;
 const SHOOT_VOL = 0.28;
+/** After this many shots, bow SFX plays at half volume. */
+const QUIET_AFTER_SHOTS = 5;
 /**
  * Converge onto the look ray this far past the muzzle's depth along that ray.
  * Long fixed distances leave mid-range shots left of the OTS crosshair.
@@ -79,6 +81,9 @@ export class Bow {
         this._meshes = [];
         /** @type {ShaderMaterial[]} */
         this._mats = [];
+
+        /** Released shots this session — volume halves after QUIET_AFTER_SHOTS. */
+        this._shots = 0;
 
         this._ready = this._load();
         void preloadSfx(SFX_URL);
@@ -275,7 +280,10 @@ export class Bow {
         if (_aim.lengthSquared() < 1e-8) _aim.set(0, 0.08, 1);
         _aim.normalize();
 
-        playSfx(SFX_URL, SHOOT_VOL);
+        this._shots += 1;
+        // After QUIET_AFTER_SHOTS: half, then another 30% off → 0.35× base.
+        const vol = this._shots > QUIET_AFTER_SHOTS ? SHOOT_VOL * 0.35 : SHOOT_VOL;
+        playSfx(SFX_URL, vol);
         this.arrows.fire(_muzzle.x, _muzzle.y, _muzzle.z, _aim.x, _aim.y, _aim.z);
     }
 

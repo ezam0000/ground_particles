@@ -98,6 +98,8 @@ export class PlayerAvatar {
         this.getAimDir = null;
         /** @type {(() => Vector3)|null} camera world position for muzzle→ray aim */
         this.getCameraPos = null;
+        /** @type {((aimDir: Vector3) => void)|null} fired after each released shot */
+        this.onShot = null;
         this._active = null;
         /** Clip fading out during a crossfade (null when idle). */
         this._fadeOut = null;
@@ -540,6 +542,7 @@ export class PlayerAvatar {
             _aimDir.normalize();
             const cam = this.getCameraPos ? this.getCameraPos() : this.controller.position;
             this.bow?.releaseShot(_aimDir, cam);
+            if (this.onShot) this.onShot(_aimDir);
         }
     }
 
