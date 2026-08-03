@@ -33,6 +33,10 @@ const PENETRATE = 0.16;
 const CHEST_Y = 1.7;
 const IMPACT_SFX = "/assets/sfx/arrow_impact.mp3";
 const IMPACT_VOL = 0.55;
+const PILLAR_SFX = "/assets/sfx/arrow_impact_pillar.mp3";
+const PILLAR_SFX_VOL = 0.55;
+/** Hit pad outside each pillar's visual hitRadius. */
+const PILLAR_HIT_PAD = 0.12;
 
 /** Slot state: 0 free, 1 flying, 2 stuck. */
 const FREE = 0;
@@ -99,9 +103,12 @@ export class ArrowPool {
         this.onGiantHit = null;
         /** @type {import("../props/giant.js").Giant|null} */
         this.giant = null;
+        /** @type {import("../portfolio/pedestals.js").Pedestals|null} */
+        this.pedestals = null;
 
         this._arrowScale = 1;
         void preloadSfx(IMPACT_SFX);
+        void preloadSfx(PILLAR_SFX);
         this._ready = this._load();
     }
 
@@ -327,7 +334,6 @@ export class ArrowPool {
 
     /**
      * Freeze arrow at impact with tip penetration.
-     * Giant hits attach to the nearest body bone so they move with attacks.
      * @param {number} i
      * @param {number} x
      * @param {number} y
@@ -335,9 +341,10 @@ export class ArrowPool {
      * @param {number} dx unit dir
      * @param {number} dy
      * @param {number} dz
-     * @param {boolean} [onGiant]
+     * @param {"ground"|"giant"|"pillar"} kind
+     * @param {{ x:number, z:number, radius:number, root: import("@babylonjs/core/Meshes/transformNode").TransformNode }|null} [pillar]
      */
-    _plant(i, x, y, z, dx, dy, dz, onGiant = false) {
+    _plant(i, x, y, z, dx, dy, dz, kind, pillar = null) {
         _dir.set(dx, dy, dz);
         if (_dir.lengthSquared() < 1e-8) _dir.set(0, -1, 0);
         _dir.normalize();
@@ -346,13 +353,25 @@ export class ArrowPool {
         let sy = y;
         let sz = z;
 
-        if (onGiant && this.giant) {
+        if (kind === "giant" && this.giant) {
             const g = this.giant;
             const ox = x - g.x;
             const oz = z - g.z;
             const horiz = Math.hypot(ox, oz) || 1;
             sx = g.x + (ox / horiz) * GIANT_BODY_R;
             sz = g.z + (oz / horiz) * GIANT_BODY_R;
+            sy = y;
+        } else if (kind === "pillar" && pillar) {
+            const ox = x - pillar.x;
+            const oz = z - pillar.z;
+            const horiz = Math.hypot(ox, oz) || 1;
+            // Embed into the shaft (surfaceRadius), not the fat detect radius.
+            const surfaceR = Math.max(
+                0.2,
+                (pillar.surfaceRadius ?? pillar.hitRadius ?? pillar.radius) - 0.08
+            );
+            sx = pillar.x + (ox / horiz) * surfaceR;
+            sz = pillar.z + (oz / horiz) * surfaceR;
             sy = y;
         }
 
@@ -374,32 +393,29 @@ export class ArrowPool {
         root.rotationQuaternion.copyFrom(_orient);
         root.position.copyFrom(_pos);
 
-        if (onGiant && this.giant?._mesh) {
+        if (kind === "giant" && this.giant?._mesh) {
             const mesh = this.giant._mesh;
             const bone = this._closestGiantBone(_pos.x, _pos.y, _pos.z);
             if (bone) {
-                // Bone absolute * mesh world → full bone world matrix.
                 _boneWorld.copyFrom(bone.getAbsoluteTransform());
                 _boneWorld.multiplyToRef(mesh.getWorldMatrix(), _boneWorld);
                 _boneWorld.invertToRef(_invBone);
                 Vector3.TransformCoordinatesToRef(_pos, _invBone, _localPos);
-                Quaternion.FromRotationMatrixToRef(_invBone, _localRot);
-                _localRot.multiplyToRef(_orient, _localRot);
 
                 root.attachToBone(bone, mesh);
                 root.position.copyFrom(_localPos);
-                // Local rotation: boneWorld⁻¹ * worldOrient (rotation only).
                 Quaternion.FromRotationMatrixToRef(_boneWorld, _localRot);
                 Quaternion.InverseToRef(_localRot, _localRot);
                 _localRot.multiplyToRef(_orient, _localRot);
                 root.rotationQuaternion.copyFrom(_localRot);
-                // Counter the skinned mesh's world scale so shaft length stays ~ARROW_LEN.
                 const wm = mesh.getWorldMatrix().m;
                 const sxn = Math.hypot(wm[0], wm[1], wm[2]) || 1;
                 root.scaling.setAll(this._arrowScale / sxn);
             } else if (this.giant._root) {
                 root.setParent(this.giant._root, true);
             }
+        } else if (kind === "pillar" && pillar?.root) {
+            root.setParent(pillar.root, true);
         }
 
         this._state[i] = STUCK;
@@ -410,6 +426,35 @@ export class ArrowPool {
     _playImpact() {
         unlockAudio();
         playSfx(IMPACT_SFX, IMPACT_VOL);
+    }
+
+    _playPillarImpact() {
+        unlockAudio();
+        playSfx(PILLAR_SFX, PILLAR_SFX_VOL);
+    }
+
+    /**
+     * Hit any plaza pillar (education, jobs, projects) using visual footprints.
+     * @param {number} px
+     * @param {number} py
+     * @param {number} pz
+     * @returns {{ x:number, z:number, radius:number, hitRadius?:number, surfaceRadius?:number, height?:number, groundY?:number, root: import("@babylonjs/core/Meshes/transformNode").TransformNode }|null}
+     */
+    _classifyPillarHit(px, py, pz) {
+        const points = this.pedestals?._points;
+        if (!points || !points.length) return null;
+        for (let i = 0; i < points.length; i++) {
+            const p = points[i];
+            const dx = px - p.x;
+            const dz = pz - p.z;
+            const r = (p.hitRadius || p.radius) + PILLAR_HIT_PAD;
+            if (dx * dx + dz * dz > r * r) continue;
+            const ground = p.groundY != null ? p.groundY : this.terrain.heightAt(p.x, p.z);
+            const top = ground + (p.height || 2.4);
+            if (py < ground + 0.02 || py > top + 0.15) continue;
+            return p;
+        }
+        return null;
     }
 
     /**
@@ -469,7 +514,7 @@ export class ArrowPool {
                     i,
                     this._px[i], ground, this._pz[i],
                     this._vx[i] / spd, this._vy[i] / spd, this._vz[i] / spd,
-                    false
+                    "ground"
                 );
                 continue;
             }
@@ -485,12 +530,26 @@ export class ArrowPool {
                     this._plant(
                         i, hx, hy, hz,
                         this._vx[i] / spd, this._vy[i] / spd, this._vz[i] / spd,
-                        true
+                        "giant"
                     );
                     this._playImpact();
                     if (this.onGiantHit) this.onGiantHit(zone, hx, hy, hz);
                     continue;
                 }
+            }
+
+            const pillar = this._classifyPillarHit(this._px[i], this._py[i], this._pz[i]);
+            if (pillar) {
+                const hx = this._px[i], hy = this._py[i], hz = this._pz[i];
+                const spd = Math.hypot(this._vx[i], this._vy[i], this._vz[i]) || 1;
+                this._plant(
+                    i, hx, hy, hz,
+                    this._vx[i] / spd, this._vy[i] / spd, this._vz[i] / spd,
+                    "pillar",
+                    pillar
+                );
+                this._playPillarImpact();
+                continue;
             }
 
             this._orientFlight(i);
@@ -529,6 +588,7 @@ export class ArrowPool {
     async warmUp() {
         await this._ready;
         await preloadSfx(IMPACT_SFX);
+        await preloadSfx(PILLAR_SFX);
         for (let i = 0; i < POOL; i++) {
             this._setVisible(i, true);
             for (let j = 0; j < this._mats[i].length; j++) {

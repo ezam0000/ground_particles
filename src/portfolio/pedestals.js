@@ -294,12 +294,31 @@ export class Pedestals {
         clone.rotationQuaternion = _orient.clone();
         clone.position.set(x, groundY, z);
 
-        // Recompute after scale for collision height / light anchor.
+        // Recompute after scale for collision height / light / arrow hit footprint.
         for (const m of solids) m.computeWorldMatrix(true);
+        _min.set(Infinity, Infinity, Infinity);
+        _max.set(-Infinity, -Infinity, -Infinity);
+        for (const m of solids) {
+            const bi = m.getBoundingInfo();
+            _min.minimizeInPlace(bi.boundingBox.minimumWorld);
+            _max.maximizeInPlace(bi.boundingBox.maximumWorld);
+        }
+        // Arrow detect vs plant: min AABB extent (max was fat and left shafts hovering).
+        const halfX = Math.max(0.01, (_max.x - _min.x) * 0.5);
+        const halfZ = Math.max(0.01, (_max.z - _min.z) * 0.5);
+        const minHalf = Math.min(halfX, halfZ);
+        const hitRadius = Math.max(COLLIDE_RADIUS, minHalf * 1.05);
+        const surfaceRadius = Math.max(0.25, minHalf * 0.82);
+        const height = Math.max(TARGET_HEIGHT, _max.y - groundY);
+
         this._points.push({
             project: entry, x, z,
             radius: COLLIDE_RADIUS,
-            y: groundY + TARGET_HEIGHT * 0.55,
+            hitRadius,
+            surfaceRadius,
+            height,
+            groundY,
+            y: groundY + height * 0.55,
             root: clone,
         });
     }

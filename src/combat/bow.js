@@ -24,6 +24,12 @@ const SFX_URL = "/assets/sfx/bow.mp3";
 /** World height of the bow limbs (m). */
 const BOW_HEIGHT = 0.72;
 const SHOOT_VOL = 0.28;
+/**
+ * Converge onto the look ray this far past the muzzle's depth along that ray.
+ * Long fixed distances leave mid-range shots left of the OTS crosshair.
+ */
+const AIM_AHEAD = 18;
+const AIM_MIN = 12;
 
 const _splits = new Vector4();
 const _fill = new Color3(0.42, 0.3, 0.18);
@@ -33,6 +39,7 @@ const _muzzle = new Vector3();
 const _aim = new Vector3();
 const _hand = new Vector3();
 const _draw = new Vector3();
+const _aimPoint = new Vector3();
 const _up = new Vector3(0, 1, 0);
 const _rot = new Quaternion();
 const _min = new Vector3();
@@ -227,23 +234,46 @@ export class Bow {
     }
 
     /**
-     * @param {Vector3} aimDir unit-ish
+     * Fire from the muzzle toward a point on the camera look ray so XZ matches
+     * the crosshair (gravity may still drop Y).
+     * @param {Vector3} lookDir unit camera look
+     * @param {Vector3} cameraPos
      */
-    releaseShot(aimDir) {
+    releaseShot(lookDir, cameraPos) {
         this.equip();
         unlockAudio();
-        _aim.copyFrom(aimDir);
+
+        _aim.copyFrom(lookDir);
         if (_aim.lengthSquared() < 1e-6) _aim.set(0, 0.08, 1);
         _aim.normalize();
-
         this._sync(_aim);
 
-        // Leave from between the hands (string → window), along aim.
+        // Leave from between the hands (string → window).
         _muzzle.set(
-            (_hand.x + _draw.x) * 0.5 + _aim.x * 0.25,
-            (_hand.y + _draw.y) * 0.5 + _aim.y * 0.25,
-            (_hand.z + _draw.z) * 0.5 + _aim.z * 0.25
+            (_hand.x + _draw.x) * 0.5 + _aim.x * 0.15,
+            (_hand.y + _draw.y) * 0.5 + _aim.y * 0.15,
+            (_hand.z + _draw.z) * 0.5 + _aim.z * 0.15
         );
+
+        // Aim through the crosshair ray near engagement depth (OTS muzzle is
+        // left of the eye — a far aim point still reads left at mid range).
+        const along =
+            (_muzzle.x - cameraPos.x) * _aim.x +
+            (_muzzle.y - cameraPos.y) * _aim.y +
+            (_muzzle.z - cameraPos.z) * _aim.z;
+        const aimDist = Math.max(along + AIM_AHEAD, AIM_MIN);
+        _aimPoint.set(
+            cameraPos.x + _aim.x * aimDist,
+            cameraPos.y + _aim.y * aimDist,
+            cameraPos.z + _aim.z * aimDist
+        );
+        _aim.set(
+            _aimPoint.x - _muzzle.x,
+            _aimPoint.y - _muzzle.y,
+            _aimPoint.z - _muzzle.z
+        );
+        if (_aim.lengthSquared() < 1e-8) _aim.set(0, 0.08, 1);
+        _aim.normalize();
 
         playSfx(SFX_URL, SHOOT_VOL);
         this.arrows.fire(_muzzle.x, _muzzle.y, _muzzle.z, _aim.x, _aim.y, _aim.z);

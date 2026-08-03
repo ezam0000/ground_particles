@@ -1,5 +1,5 @@
 ---
-description: Player locomotion, avatar clips, hit/emote busy locks
+description: Player locomotion, avatar clips, bow draw, hit/emote busy locks
 globs: src/character/**/*.js
 alwaysApply: false
 ---
@@ -11,25 +11,29 @@ alwaysApply: false
 - **`CharacterController`** — motion only (wish, jump, gait phase, `locked`, knockback).
 - **`PlayerAvatar`** — root pose + AnimationGroups from `main_man.glb`.
 - **`SnowContact`** — footfall brushes only (no continuous pelvis drag).
+- **`Bow` / `ArrowPool`** live in `src/combat/` — avatar owns draw busy + aim provider.
 
 Do not revive unwired `figure.js` / `character.js` / cloth unless explicitly requested.
 
 ## Locomotion
 
 - Kinematic; no physics engine. Slope traction + coyote/buffer live in the controller.
-- Feet stand on heightfield Y (optional visual `sink`); deform is VFX only.
-- `locked` (hit/emote/inspect) blocks wish, jump, and gait — same freeze sites.
+- Feet stand on heightfield Y with `FOOT_CLEARANCE`; deform is VFX only.
+- `locked` (hit/emote/draw/inspect) blocks wish, jump, and gait — same freeze sites.
 
 ## Animation
 
-- Clips resolved by name regex: Walk / Run / Alert, `falling_down`, `Stand_Up3`, emotes (`gangnam|emote|groove`).
-- `_busy`: `'hit' | 'emote' | null`. While set, `_syncAnim` must not overwrite with locomotion.
+- Clips by name regex: Walk / Run / Alert, `falling_down`, `Stand_Up3`, emotes, `Archery_Shot`.
+- `_busy`: `'hit' | 'emote' | 'draw' | null`. While set, `_syncAnim` must not overwrite with locomotion.
 - Hit: `falling_down` → `Stand_Up3` → Alert; unlock only after get-up. Not cancellable.
-- Emote: **C** (`emotePressed`) cycles `_emotes[]`; cancel on WASD/jump.
-- Crossfade with weights OK; **never** `goToFrame` every stride — only on walk↔run swaps (stride wrap snaps look choppy).
+- Draw: **R** (`drawPressed`) plays `Archery_Shot`; aim = camera `getLookDir`; release at `RELEASE_T`.
+- Emote: **C** cycles `_emotes[]`; cancel on WASD/jump.
+- Crossfade with weights OK; **never** `goToFrame` every stride — only on walk↔run swaps.
 
 ## New clips
 
 Merge into `main_man.glb` (shared skeleton node indices), crush, then wire by name. Prefer one-shots with `onAnimationGroupEndObservable`.
 
-Fall / get-up / any clip with **Hips XZ root motion** must pin Hips XZ to idle rest (keep Y + rotations) or the mesh teleports when clips chain. Runtime `_pinHipsXZ` is a safety net; prefer baking the pin into the GLB.
+Fall / get-up / archery / any clip with **Hips XZ root motion** must pin Hips XZ to idle rest (keep Y + rotations). Runtime `_pinHipsXZ` is a safety net; prefer baking the pin into the GLB.
+
+Hand sockets: call `prepareSkeleton()` (`computeAbsoluteTransforms`) before `getHandWorldPos` / bone attach.

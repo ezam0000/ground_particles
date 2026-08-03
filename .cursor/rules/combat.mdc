@@ -1,0 +1,26 @@
+---
+description: Bow, arrows, and combat SFX conventions
+globs: src/combat/**/*.js
+alwaysApply: false
+---
+
+# Combat
+
+## Bow ([`src/combat/bow.js`](src/combat/bow.js))
+
+- Authored `bow.glb` on LeftHand world socket after `avatar.prepareSkeleton()`.
+- Aim = camera `getLookDir` (crosshair). Equip on first shot; visible while `_busy === 'draw'`.
+- `releaseShot` fires into `ArrowPool` + bow SFX (keep volume modest ~0.28).
+
+## Arrows ([`src/combat/arrows.js`](src/combat/arrows.js))
+
+- Pool of **10** `arrow.glb` instances — visible in flight, stuck on impact (FIFO recycle).
+- Tip authored −Z → apply `_tipFix` (π yaw). Plant mid-shaft so tip penetrates ~`PENETRATE`.
+- Giant plant: snap to `GIANT_BODY_R`, then **`attachToBone`** nearest body bone (not root) so shafts ride attacks.
+- Pillar plant: snap to pedestal radius, parent to pillar root; play `arrow_impact_pillar.mp3` (trimmed).
+- Ground plant: world-space stuck in sand. Giant impact SFX only on giant hits.
+
+## SFX ([`src/combat/sfx.js`](src/combat/sfx.js))
+
+- `preloadSfx` / `playSfx` / `unlockAudio` — Web Audio buffer pool, HTMLAudio fallback.
+- Trim leading silence from one-shots so impact timing matches ballistics / melee window.

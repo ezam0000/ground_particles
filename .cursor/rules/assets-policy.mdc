@@ -1,19 +1,22 @@
 ---
-description: Authored asset layout, crush/merge pipeline, and gitignore allowances
+description: Authored asset layout, crush/merge pipeline, SFX, and gitignore allowances
 alwaysApply: true
 ---
 
 # Assets
 
-Runtime is procedural terrain + authored GLBs/media. Binaries live under `public/assets/…` (Vite-served).
+Runtime is procedural terrain + authored GLBs/media/SFX. Binaries live under `public/assets/…` (Vite-served).
 
 ## Layout
 
 ```
 public/assets/environments/{snow,sand}/detail.png   # optional RGBA detail
 public/assets/character/main_man.glb                # player skin + anims
+public/assets/character/bow.glb                     # bow mesh
+public/assets/character/arrow.glb                   # flight + stuck arrows
 public/assets/odyssey/models/*.glb                  # pillars, giant
 public/assets/portfolio/*                           # card thumbs / gifs
+public/assets/sfx/*.mp3                             # bow, arrow/giant/pillar impacts
 ```
 
 Env detail channels (match `detailBake`): RG = tangent normal XY (`n*0.5+0.5`), B = cavity, A = height. Missing → procedural bake for that side.
@@ -29,6 +32,12 @@ Env detail channels (match `detailBake`): RG = tangent normal XY (`n*0.5+0.5`), 
 - Prop/player shading samples **albedo only**. Crush with `node scripts/crushPillarTextures.mjs <path.glb>` (512 JPEG, drop extra maps; skins/anims kept).
 - New Meshy clips: merge animation accessors into the target GLB by **shared node indices** (same skeleton), then re-crush. Do not ship full withSkin duplicates per clip.
 - CPU-skin skinned props (`computeBonesUsingShaders = false`) so `prop` / `staticDepth` / `staticPrepass` stay rigid shaders.
+
+## Audio
+
+- Use `src/combat/sfx.js` (`preloadSfx` / `playSfx` / `unlockAudio`) — Web Audio, no per-frame alloc.
+- Trim leading silence from one-shots before commit (impact timing must match gameplay).
+- Unlock on pointer-lock click / first shot.
 
 ## Git
 

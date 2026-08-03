@@ -96,6 +96,8 @@ export class PlayerAvatar {
         this.bow = null;
         /** @type {(() => Vector3)|null} look-dir provider from camera (crosshair) */
         this.getAimDir = null;
+        /** @type {(() => Vector3)|null} camera world position for muzzle→ray aim */
+        this.getCameraPos = null;
         this._active = null;
         /** Clip fading out during a crossfade (null when idle). */
         this._fadeOut = null;
@@ -536,7 +538,8 @@ export class PlayerAvatar {
             }
             if (_aimDir.lengthSquared() < 1e-6) _aimDir.set(0, 0.08, 1);
             _aimDir.normalize();
-            this.bow?.releaseShot(_aimDir);
+            const cam = this.getCameraPos ? this.getCameraPos() : this.controller.position;
+            this.bow?.releaseShot(_aimDir, cam);
         }
     }
 

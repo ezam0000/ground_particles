@@ -151,6 +151,7 @@ async function boot() {
     // Bow combat: pooled arrows + procedural bow on the player's hand.
     const arrows = new ArrowPool(scene, terrain, sky, shadows, lights);
     arrows.giant = giant;
+    arrows.pedestals = pedestals;
     arrows.onGiantHit = (zone) => giant.playHit(zone);
     const bow = new Bow(scene, sky, shadows, lights, arrows);
     avatar.bow = bow;
@@ -158,6 +159,7 @@ async function boot() {
         rig.getLookDir(_aim);
         return _aim;
     };
+    avatar.getCameraPos = () => rig.camera.position;
 
     // The rig needs ground heights to keep the spring arm above the sand.
     rig.groundAt = (x, z) => terrain.heightAt(x, z);

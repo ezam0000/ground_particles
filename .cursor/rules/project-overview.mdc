@@ -5,7 +5,7 @@ alwaysApply: true
 
 # Portfolio dunes (SNOWFLOW engine)
 
-Walkable sand portfolio on WebGPU (Babylon.js + hand-written WGSL). **No WebGL fallback.** Sand-only in product mode: no surf, no castable spells. Authored GLB props + procedural terrain/deform/sky.
+Walkable sand portfolio on WebGPU (Babylon.js + hand-written WGSL). **No WebGL fallback.** Sand-only in product mode: no surf, no castable spells. Authored GLB props + procedural terrain/deform/sky + bow combat.
 
 ## Layout
 
@@ -15,7 +15,8 @@ src/core/            settings, input, camera, loading, gpuUtil, envProfile
 src/terrain/         heightfield, clipmap, deformation state buffer
 src/render/          sky/IBL, shadow cascades, depth prepass
 src/character/       controller, PlayerAvatar (GLB), snowContact
-src/props/           Giant (patrol + timed hits)
+src/props/           Giant (patrol, melee contact hits, arrow reacts)
+src/combat/          bow, arrow pool, sfx helpers
 src/portfolio/       pedestals, cards, projects.json
 src/vfx/             spray particles
 src/spells/          SpellLights pool only (pedestal key lights)
@@ -27,13 +28,13 @@ Legacy procedural figure/cloth modules may still exist under `character/` but ar
 
 ## Hard constraints
 
-- **No allocation in the render loop.** Pre-size buffers/typed arrays; module-scope scratch (`_vel`). Never `new` per frame.
-- **Warm up behind the loading screen.** Materials / pipelines `warmUp()` / `whenReady()` before first interactive frame.
+- **No allocation in the render loop.** Pre-size buffers/typed arrays; module-scope scratch (`_vel`, `_aim`). Never `new` per frame.
+- **Warm up behind the loading screen.** Materials / pipelines / SFX `warmUp()` / `whenReady()` / `preloadSfx` before first interactive frame.
 - **Keep systems modular.** New features go in their domain folder. Wire in `main.js` only for construction + per-frame order.
 - **Shared sand state.** Feet + props write deform via `DeformationField.brush()`. Lit props/terrain read `SpellLights` / `#include<snowSpellLights>`.
 - **Rendering groups:** 0 = sky, 1 = opaque, 2 = alpha (spray). Depth auto-clear between groups is off on purpose.
 - Prefer lean changes. No fallbacks, catch-alls, or speculative branches.
-- **No physics engine.** Kinematic controller + circle push-outs + timed hit windows.
+- **No physics engine.** Kinematic controller + circle push-outs + **melee contact** (hand/body proximity in a timed window).
 
 ## Run
 

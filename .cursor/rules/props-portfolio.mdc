@@ -1,5 +1,5 @@
 ---
-description: Authored GLB props — pillars, giant patrol/hits, crush conventions
+description: Authored GLB props — pillars, giant melee/reacts, crush conventions
 globs: src/props/**/*.js,src/portfolio/**/*.js
 alwaysApply: false
 ---
@@ -19,10 +19,14 @@ alwaysApply: false
 
 ## Giant
 
-- Patrol waypoints; proximity starts attack clips; **move-lock** while `_attacking`.
-- Hits are **timed**, not clip-end and not `ATTACK_RANGE`:
-  - `HIT_DELAY` / `HIT_WINDOW` / `HIT_RADIUS` (~3m)
-  - one-frame `didHit`; `main.js` calls `character.applyHit` + `avatar.playHit`
+- Patrol waypoints; proximity starts attack clips; **move-lock** while `_attacking` / `_reacting`.
+- Hits require **melee contact**, not a fat remote radius:
+  - Timed `HIT_DELAY` / `HIT_WINDOW` mid-swing
+  - Player in front (`_facingPlayer`)
+  - Hand/forearm near player **or** body-press (`HIT_CONTACT` / `HAND_HIT_R` / `BODY_PRESS`)
+  - one-frame `didHit` + `giant_hit.mp3`; `main.js` calls `character.applyHit` + `avatar.playHit`
+- Arrow reacts: zone clips `Hit_Back` / `Hit_Waist` / `Hit_Chest` via `playHit(zone)`; pin large root-motion hips.
+- Stuck arrows attach with `attachToBone` on the nearest body bone (not the root) so they ride attacks.
 - Foot stamps from stride distance matched to walk clip period; no continuous stance drag.
 
 ## Assets

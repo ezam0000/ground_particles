@@ -33,7 +33,12 @@ Order is intentional — preserve or update comments when changing it:
 ```
 pollInput → character.update → pedestal/giant collision → contact
 → camera → post/sky/shadows → pedestals → giant → (didHit → applyHit/playHit)
-→ avatar → terrain → spray → render → endFrame
+→ avatar → bow → arrows → terrain → spray → render → endFrame
 ```
 
-Input edges (`jumpPressed`, `emotePressed`, `openPressed`) clear in `endFrame()`.
+Input edges (`jumpPressed`, `emotePressed`, `drawPressed`, `openPressed`) clear in `endFrame()`.
+
+## Combat notes
+
+- Bow grips LeftHand (skeleton refresh required); arrows are a 10-slot FIFO pool (flight + stuck).
+- Giant melee hits only on contact window + SFX; arrow hits call `giant.playHit(zone)`.

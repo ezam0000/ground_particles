@@ -18,8 +18,11 @@ import { bindMatrixArray, whenReady } from "../core/gpuUtil.js";
 import { getLerped } from "../core/envProfile.js";
 import { SPELL_LIGHT_UNIFORMS } from "../spells/spellLights.js";
 import { angleDamp } from "../character/controller.js";
+import { preloadSfx, playSfx, unlockAudio } from "../combat/sfx.js";
 
 const MODEL = "/assets/odyssey/models/giant.glb";
+const HIT_SFX = "/assets/sfx/giant_hit.mp3";
+const HIT_SFX_VOL = 0.65;
 
 /** World height of the giant, metres. Source mesh is ~3m tall. */
 const TARGET_HEIGHT = 3;
@@ -39,9 +42,16 @@ const ATTACK_COOLDOWN = 3.2;
 /** Seconds after attack start before the hit box arms. */
 const HIT_DELAY = 0.55;
 /** Seconds the hit box stays live after HIT_DELAY. */
-const HIT_WINDOW = 0.22;
-/** Tight contact radius for landing a hit (not ATTACK_RANGE). */
-const HIT_RADIUS = 3.2;
+const HIT_WINDOW = 0.28;
+/**
+ * Max player–giant distance for a connecting swing (body radii + short reach).
+ * Was ~3.2 — felt like remote hits; now requires near contact.
+ */
+const HIT_CONTACT = COLLIDE_RADIUS + CHAR_RADIUS + 0.55;
+/** Hand/forearm must be this close to the player torso to count as contact. */
+const HAND_HIT_R = 1.35;
+/** Body-press fallback when hands aren't near but you're in the giant's space. */
+const BODY_PRESS = COLLIDE_RADIUS + CHAR_RADIUS + 0.2;
 
 /** Foot print — larger than a human boot. */
 const FOOT_WIDTH = 0.16;
@@ -66,8 +76,11 @@ const _normal = new Vector3();
 const _yawQ = new Quaternion();
 const _tiltQ = new Quaternion();
 const _orient = new Quaternion();
+const _hand = new Vector3();
 const _keyPos = new Float32Array(24);
 const _keyCol = new Float32Array(24);
+
+const HAND_BONES = ["LeftHand", "RightHand", "LeftForeArm", "RightForeArm"];
 
 export class Giant {
     /**
@@ -124,7 +137,10 @@ export class Giant {
         this._depthMats = [0, 1].map((c) => this._makeDepthMaterial(c));
         this._prepassMat = this._makePrepassMaterial();
 
+        /** @type {import("@babylonjs/core/Bones/bone").Bone[]} */
+        this._strikeBones = [];
         this._ready = this._load();
+        void preloadSfx(HIT_SFX);
     }
 
     async _load() {
@@ -174,6 +190,15 @@ export class Giant {
 
         this._root = root;
         this._mesh = body;
+
+        // Cache strike bones for melee contact tests (no per-frame name search).
+        this._strikeBones = [];
+        if (body.skeleton) {
+            for (const name of HAND_BONES) {
+                const b = body.skeleton.bones.find((bone) => bone.name === name);
+                if (b) this._strikeBones.push(b);
+            }
+        }
 
         // Walk is in-place; attacks are one-shots when the player is near.
         const groups = result.animationGroups || [];
@@ -262,6 +287,42 @@ export class Giant {
                 keys[i].value.z = restZ;
             }
         }
+    }
+
+    /**
+     * True when the player is roughly in front of the giant (swing arc).
+     * @param {number} pdx
+     * @param {number} pdz
+     * @param {number} pDist
+     */
+    _facingPlayer(pdx, pdz, pDist) {
+        if (pDist < 1e-4) return true;
+        const fx = Math.sin(this.yaw);
+        const fz = Math.cos(this.yaw);
+        return (pdx / pDist) * fx + (pdz / pDist) * fz > 0.12;
+    }
+
+    /**
+     * True when a swinging hand/forearm is near the player, or bodies are pressed.
+     * @param {Vector3} playerPos
+     * @param {number} pDist
+     */
+    _inMeleeContact(playerPos, pDist) {
+        if (pDist <= BODY_PRESS) return true;
+        if (pDist > HIT_CONTACT) return false;
+
+        const mesh = this._mesh;
+        const sk = mesh?.skeleton;
+        if (!sk || !this._strikeBones.length) return pDist <= HIT_CONTACT * 0.85;
+
+        sk.computeAbsoluteTransforms();
+        const py = playerPos.y + 1.05;
+        for (let i = 0; i < this._strikeBones.length; i++) {
+            this._strikeBones[i].getAbsolutePositionToRef(mesh, _hand);
+            const d = Math.hypot(_hand.x - playerPos.x, _hand.y - py, _hand.z - playerPos.z);
+            if (d <= HAND_HIT_R) return true;
+        }
+        return false;
     }
 
     /**
@@ -403,6 +464,7 @@ export class Giant {
 
     async warmUp() {
         await this._ready;
+        await preloadSfx(HIT_SFX);
         for (const { mat, mesh } of this._mats) {
             await whenReady(mat, mat.name, [mesh, false]);
         }
@@ -453,17 +515,20 @@ export class Giant {
             }
         }
 
-        // Timed hit window mid-swing (not on clip end, not ATTACK_RANGE).
+        // Timed melee window: needs near contact (hand or body press), not remote.
         if (this._attacking && !this._reacting) {
             this._hitT += Math.max(dt, 0);
             if (
                 !this._hitLanded &&
                 this._hitT >= HIT_DELAY &&
                 this._hitT <= HIT_DELAY + HIT_WINDOW &&
-                pDist < HIT_RADIUS
+                this._facingPlayer(pdx, pdz, pDist) &&
+                this._inMeleeContact(playerPos, pDist)
             ) {
                 this._hitLanded = true;
                 this.didHit = true;
+                unlockAudio();
+                playSfx(HIT_SFX, HIT_SFX_VOL);
             }
         }
 
