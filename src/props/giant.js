@@ -14,6 +14,7 @@ import { Constants } from "@babylonjs/core/Engines/constants";
 import { Vector3, Vector4, Color3, Quaternion } from "@babylonjs/core/Maths/math";
 
 import { S } from "../core/settings.js";
+import { input } from "../core/input.js";
 import { bindMatrixArray, whenReady } from "../core/gpuUtil.js";
 import { getLerped } from "../core/envProfile.js";
 import { SPELL_LIGHT_UNIFORMS } from "../spells/spellLights.js";
@@ -33,6 +34,8 @@ const TARGET_HEIGHT = 3;
 /** Feet collision radius. */
 const COLLIDE_RADIUS = 0.75;
 const CHAR_RADIUS = 0.45;
+/** Player must be this close (XZ) to award the Laestrygonians card via I. */
+const CARD_INSPECT_RANGE = 7.5;
 
 /** Walk speed (m/s) — clip is in-place, so we drive the root ourselves. */
 const WALK_SPEED = 1.35;
@@ -489,6 +492,19 @@ export class Giant {
                 await whenReady(this._depthMats[i], "giant depth " + i, [this._mesh, false]);
             }
         }
+    }
+
+    /**
+     * I while close → award Laestrygonians card (caller shows drop).
+     * @param {Vector3} playerPos
+     * @returns {{ x: number, z: number }|null}
+     */
+    pollCardInspect(playerPos) {
+        if (!input.inspectPressed) return null;
+        const dx = playerPos.x - this.x;
+        const dz = playerPos.z - this.z;
+        if (dx * dx + dz * dz > CARD_INSPECT_RANGE * CARD_INSPECT_RANGE) return null;
+        return { x: this.x, z: this.z };
     }
 
     /** @param {Vector3} pos */

@@ -59,13 +59,19 @@ export const LORE_CSS = `
 }
 .odyssey-lore h2 {
     margin: 0;
-    font-size: clamp(32px, 5.5vw, 42px);
+    max-width: 100%;
+    font-size: clamp(22px, 4.4vw, 32px);
     font-weight: 700;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.035em;
     text-transform: uppercase;
-    line-height: 1.05;
+    line-height: 1.12;
     color: #1a1008;
     text-shadow: 0 1px 0 rgba(255, 248, 230, 0.55);
+    overflow-wrap: anywhere;
+}
+.odyssey-lore h2.ol-long {
+    font-size: clamp(18px, 3.6vw, 26px);
+    letter-spacing: 0.02em;
 }
 .odyssey-lore .ol-rule {
     display: flex;
@@ -126,7 +132,11 @@ export function fillLore(root, card) {
     const h2 = root.querySelector("h2");
     const lead = root.querySelector(".ol-lead");
     const body = root.querySelector(".ol-body");
-    if (h2) h2.textContent = card.title;
+    if (h2) {
+        h2.textContent = card.title;
+        // Long all-caps titles (e.g. Laestrygonians) need a tighter face.
+        h2.classList.toggle("ol-long", String(card.title || "").length > 11);
+    }
     if (lead) lead.textContent = parts[0] || "";
     if (body) body.textContent = parts.slice(1).join("\n\n");
 }

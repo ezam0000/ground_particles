@@ -34,6 +34,7 @@ import { SheepFlock } from "./props/sheep.js";
 import { Cyclops } from "./props/cyclops.js";
 import { DropCard } from "./props/cards/dropCard.js";
 import { CardBook } from "./props/cards/cardBook.js";
+import { has as hasCard } from "./props/cards/collection.js";
 import { ArrowPool } from "./combat/arrows.js";
 import { Bow } from "./combat/bow.js";
 import { unlockAudio } from "./combat/sfx.js";
@@ -276,7 +277,24 @@ async function boot() {
                 cardBook.open();
                 character.locked = true;
             } else if (!antinous.pollRevive(character.position)) {
-                pedestals.pollInspect(rig, character.position);
+                let awarded = false;
+                if (!input.inspecting && !rig.inspecting) {
+                    if (!hasCard("laestrygonians")) {
+                        const g = giant.pollCardInspect(character.position);
+                        if (g) {
+                            showDrop("laestrygonians", g.x, g.z);
+                            awarded = true;
+                        }
+                    }
+                    if (!awarded && !hasCard("sheep")) {
+                        const s = sheep.pollCardInspect(character.position, time);
+                        if (s) {
+                            showDrop("sheep", s.x, s.z);
+                            awarded = true;
+                        }
+                    }
+                }
+                if (!awarded) pedestals.pollInspect(rig, character.position);
             }
         }
 

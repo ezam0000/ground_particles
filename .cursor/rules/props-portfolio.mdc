@@ -24,6 +24,7 @@ alwaysApply: false
 - Melee hits need **contact** in a timed window: front-facing + hand/forearm near player or body-press; then `didHit` + `giant_hit.mp3` → `character.applyHit` / `avatar.playHit`.
 - Arrow zones via `playHit(zone)`; headshots = face-only (see combat).
 - Every **5th** arrow land → `giant_roar.mp3`. Stuck arrows: `attachToBone`.
+- Cannot be killed. **I** within ~7.5 m awards the **Laestrygonians** collectible (once).
 
 ## Antinous ([`src/props/antinous.js`](src/props/antinous.js))
 
@@ -33,6 +34,7 @@ alwaysApply: false
 
 - **4** patrol east of spawn (`~28, −12`). Arrow hit → random `sheep_1..3.mp3`; die after **2** hits (sink then hide).
 - `onAllDead` once → Polyphemus spawn. Collision push while alive/sinking.
+- **Sheep card:** after **30 s** play time, if **no** sheep killed, **I** near any living sheep → baa + collectible (once). Killing any sheep locks it out.
 
 ## Polyphemus / Cyclops ([`src/props/cyclops.js`](src/props/cyclops.js))
 
@@ -42,11 +44,12 @@ alwaysApply: false
 
 ## Collectible cards ([`src/props/cards/`](src/props/cards/))
 
-- Catalog + `localStorage` collection (`dunes.cards.v1`). Death drop awards Antinoös / Polyphemus.
+- Catalog + `localStorage` collection (`dunes.cards.v1`).
+- Death drops: Antinoös / Polyphemus. Inspect awards: Laestrygonians (giant) / Sheep (peaceful flock).
 - Drop overlay: **F** flip lore, **E** continue. **B** opens card book (browse ←→, flip F, close B).
 - Antinous `onDeath` fires when the death clip ends (same as cyclops).
 
 ## Assets
 
 - Models under `public/assets/odyssey/models/` (`sheep.glb`, `cyclops.glb`, …). Crush before commit.
-- Cards: `odyssey/antinous_card.png`, `odyssey/polyphemus_card.png`.
+- Cards: `odyssey/antinous_card.png`, `odyssey/polyphemus_card.png`, `odyssey/laestrygonians_card.png`, `odyssey/sheep_card.png`.

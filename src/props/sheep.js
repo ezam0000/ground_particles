@@ -12,6 +12,7 @@ import { Constants } from "@babylonjs/core/Engines/constants";
 import { Vector3, Vector4, Color3, Quaternion } from "@babylonjs/core/Maths/math";
 
 import { S } from "../core/settings.js";
+import { input } from "../core/input.js";
 import { bindMatrixArray, whenReady } from "../core/gpuUtil.js";
 import { SPELL_LIGHT_UNIFORMS } from "../spells/spellLights.js";
 import { angleDamp } from "../character/controller.js";
@@ -35,6 +36,9 @@ const BODY_R = 0.28;
 const WALK_SPEED = 0.85;
 const WALK_ANIM_SPEED = 1.0;
 const SINK_DUR = 0.85;
+/** Alive flock + I after this many play-seconds awards the Sheep card (if none killed). */
+const CARD_DELAY = 30;
+const CARD_INSPECT_RANGE = 3.8;
 
 /** Pasture center east of spawn (away from other landmarks). */
 const PASTURE = { x: 28, z: -12 };
@@ -89,6 +93,8 @@ export class SheepFlock {
         /** @type {(() => void)|null} */
         this.onAllDead = null;
         this._allDeadFired = false;
+        /** True once any sheep dies — locks out the peaceful Sheep card. */
+        this._killedAny = false;
 
         /** @type {{ mat: import("@babylonjs/core/Materials/shaderMaterial").ShaderMaterial, mesh: import("@babylonjs/core/Meshes/mesh").Mesh }[]} */
         this._mats = [];
@@ -330,7 +336,39 @@ export class SheepFlock {
         unit.alive = false;
         unit.sinking = true;
         unit.sinkT = 0;
+        this._killedAny = true;
         if (unit.walk) unit.walk.stop();
+    }
+
+    /**
+     * Peaceful inspect: after CARD_DELAY with no kills, I near a living sheep
+     * plays a baa and returns that sheep’s xz for the collectible drop.
+     * @param {Vector3} playerPos
+     * @param {number} gameTime seconds since play start
+     * @returns {{ x: number, z: number }|null}
+     */
+    pollCardInspect(playerPos, gameTime) {
+        if (!input.inspectPressed) return null;
+        if (this._killedAny || gameTime < CARD_DELAY) return null;
+
+        let best = null;
+        let bestD2 = CARD_INSPECT_RANGE * CARD_INSPECT_RANGE;
+        for (let i = 0; i < this.sheep.length; i++) {
+            const s = this.sheep[i];
+            if (!s.alive) continue;
+            const dx = playerPos.x - s.x;
+            const dz = playerPos.z - s.z;
+            const d2 = dx * dx + dz * dz;
+            if (d2 < bestD2) {
+                bestD2 = d2;
+                best = s;
+            }
+        }
+        if (!best) return null;
+
+        unlockAudio();
+        playSfx(SFX[(Math.random() * SFX.length) | 0], SFX_VOL);
+        return { x: best.x, z: best.z };
     }
 
     _notifyAllDead() {

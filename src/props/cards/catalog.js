@@ -37,6 +37,29 @@ export const CARDS = [
             "then fled tied beneath the rams. Polyphemus’s cry for revenge reached " +
             "Poseidon, whose wrath lengthened Odysseus’s voyage home.",
     },
+    {
+        id: "laestrygonians",
+        title: "Laestrygonians",
+        front: "/assets/odyssey/laestrygonians_card.png",
+        lore:
+            "A race of man-eating giants who dwelt in a cliff-walled harbor. " +
+            "When Odysseus’s fleet put in for rest, the Laestrygonians hurled " +
+            "boulders from the heights and speared the crews like fish.\n\n" +
+            "Every ship but Odysseus’s own was smashed in the narrow cove. " +
+            "He cut the cable and fled to open sea — the costliest loss of the voyage, " +
+            "and a warning that not every shore offers guest-right.",
+    },
+    {
+        id: "sheep",
+        title: "Sheep",
+        front: "/assets/odyssey/sheep_card.png",
+        lore:
+            "The flock of Polyphemus — thick-wooled rams and ewes that left the cave " +
+            "each morning for pasture and returned at dusk to be milked by the Cyclops.\n\n" +
+            "After blinding their master, Odysseus and his men clung beneath the bellies " +
+            "of the largest rams and rode out past the groping giant. Mercy toward the " +
+            "flock was the price of escape; slaughter would have left them trapped.",
+    },
 ];
 
 /** @type {Map<string, CardDef>} */
