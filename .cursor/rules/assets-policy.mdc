@@ -19,8 +19,11 @@ public/assets/odyssey/polyphemus_card.png           # cyclops death card art
 public/assets/odyssey/antinous_card.png             # Antinoös death card art
 public/assets/odyssey/laestrygonians_card.png       # giant inspect card art
 public/assets/odyssey/sheep_card.png                # peaceful flock inspect card art
+public/assets/odyssey/eumaeus_card.png              # swineherd bow-gift card
+public/assets/odyssey/argos_card.png                # dog inspect card
+public/assets/odyssey/zeus_death.png                # sacred-NPC Zeus death fullscreen
 public/assets/portfolio/org/*                       # edu/job logos only
-public/assets/sfx/*.mp3                             # bow, impacts, headshot, giant/antinous/sheep/cyclops VO
+public/assets/sfx/*.mp3                             # bow, impacts, headshot, giant/antinous/sheep/cyclops/argos/eumaeus/zeus VO
 public/assets/boot/loading_screen_background.mp4    # boot loop
 public/assets/boot/loading_{1,2}.mp3                # random boot music (stereo ~96k)
 ```

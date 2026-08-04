@@ -327,12 +327,16 @@ export class Bow {
     async warmUp() {
         await this._ready;
         await preloadSfx(SFX_URL);
-        this.setVisible(true);
+        // Compile materials without leaving the grip mesh enabled in-world.
         this.equipped = true;
+        this._root.setEnabled(true);
+        for (const m of this._meshes) m.isVisible = true;
         for (let i = 0; i < this._mats.length; i++) {
             await whenReady(this._mats[i], "bow " + i, [this._meshes[i], false]);
         }
         this.equipped = false;
-        this.setVisible(false);
+        this._root.setEnabled(false);
+        for (const m of this._meshes) m.isVisible = false;
+        this._root.position.set(0, -50, 0);
     }
 }

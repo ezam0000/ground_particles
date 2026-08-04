@@ -123,6 +123,12 @@ export class ArrowPool {
         this.cyclops = null;
         /** @type {import("../portfolio/pedestals.js").Pedestals|null} */
         this.pedestals = null;
+        /** @type {import("../props/eumaeus.js").Eumaeus|null} */
+        this.eumaeus = null;
+        /** @type {import("../props/argos.js").Argos|null} */
+        this.argos = null;
+        /** @type {(() => void)|null} */
+        this.onSacredHit = null;
 
         this._arrowScale = 1;
         void preloadSfx(IMPACT_SFX);
@@ -278,6 +284,13 @@ export class ArrowPool {
         root.setParent(null);
         root.scaling.setAll(this._arrowScale);
         this._setVisible(i, false);
+    }
+
+    /** Drop every in-flight arrow (Zeus death / soft respawn). */
+    clearFlying() {
+        for (let i = 0; i < POOL; i++) {
+            if (this._state[i] === FLYING) this._clearSlot(i);
+        }
     }
 
     /**
@@ -665,6 +678,17 @@ export class ArrowPool {
                     this._vx[i] / spd, this._vy[i] / spd, this._vz[i] / spd,
                     "ground"
                 );
+                continue;
+            }
+
+            if (this.argos?.present && this.argos.hitTest(this._px[i], this._py[i], this._pz[i])) {
+                this._clearSlot(i);
+                if (this.onSacredHit) this.onSacredHit();
+                continue;
+            }
+            if (this.eumaeus?.present && this.eumaeus.hitTest(this._px[i], this._py[i], this._pz[i])) {
+                this._clearSlot(i);
+                if (this.onSacredHit) this.onSacredHit();
                 continue;
             }
 

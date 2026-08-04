@@ -124,6 +124,7 @@ export class DropCard {
 
         this._img = /** @type {HTMLImageElement} */ (this.el.querySelector(".od-front img"));
         this._loreRoot = /** @type {HTMLElement} */ (this.el.querySelector(".odyssey-lore"));
+        this._hint = /** @type {HTMLElement} */ (this.el.querySelector(".od-hint"));
 
         this.visible = false;
         this.flipped = false;
@@ -143,6 +144,12 @@ export class DropCard {
         this._img.alt = card.title;
         this._loreRoot.innerHTML = loreHtml(card);
         fillLore(this._loreRoot, card);
+        if (this._hint) {
+            this._hint.innerHTML =
+                cardId === "eumaeus"
+                    ? "<b>F</b> flip <b>E</b> take the bow"
+                    : "<b>F</b> flip <b>E</b> continue";
+        }
         this.flipped = false;
         this.el.classList.remove("flipped");
         this.visible = true;

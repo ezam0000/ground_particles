@@ -60,6 +60,27 @@ export const CARDS = [
             "of the largest rams and rode out past the groping giant. Mercy toward the " +
             "flock was the price of escape; slaughter would have left them trapped.",
     },
+    {
+        id: "eumaeus",
+        title: "Eumaeus",
+        front: "/assets/odyssey/eumaeus_card.png",
+        lore:
+            "The loyal swineherd of Ithaca, who kept Odysseus’s herds through the long years " +
+            "of the Trojan war and the wanderer’s return. He received the disguised king " +
+            "with guest-right when others would not.\n\n" +
+            "From his hut the plan against the suitors took shape. He armed his master and " +
+            "stood by him in the hall — a servant whose faithfulness outlasted every false friend.",
+    },
+    {
+        id: "argos",
+        title: "Argos",
+        front: "/assets/odyssey/argos_card.png",
+        lore:
+            "Odysseus’s hunting dog, raised in the days before Troy. Neglected on the dung-heap " +
+            "while the master was gone, Argos alone knew the beggar at the gate.\n\n" +
+            "He wagged his tail and laid back his ears — then, having seen his lord once more, " +
+            "died. The recognition that cost nothing of speech cost the dog his last breath.",
+    },
 ];
 
 /** @type {Map<string, CardDef>} */

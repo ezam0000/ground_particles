@@ -159,7 +159,8 @@
 
     #hint.show { opacity: 1; }
 
-    #antinous-revive {
+    #antinous-revive,
+    #eumaeus-talk {
         position: fixed;
         left: 50%;
         bottom: 18vh;
@@ -172,7 +173,8 @@
         text-shadow: 0 1px 12px rgba(0, 0, 0, 0.85);
         pointer-events: none;
     }
-    #antinous-revive b {
+    #antinous-revive b,
+    #eumaeus-talk b {
         font-weight: 700;
         color: #f0c878;
         border: 1px solid rgba(240, 200, 120, 0.45);
@@ -239,6 +241,62 @@
         transition: opacity 400ms ease;
     }
     #crosshair.show { opacity: 1; }
+    #crosshair.warn::before,
+    #crosshair.warn::after {
+        background: rgba(240, 170, 70, 0.9);
+    }
+    #crosshair.warn .dot {
+        background: rgba(255, 190, 80, 0.98);
+        box-shadow: 0 0 10px rgba(255, 170, 60, 0.65);
+    }
+    #crosshair .warn-label {
+        position: absolute;
+        left: 50%;
+        top: 18px;
+        transform: translateX(-50%);
+        white-space: nowrap;
+        font: 400 9px/1.2 ui-sans-serif, "Segoe UI", system-ui, sans-serif;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: rgba(255, 200, 110, 0.82);
+        text-shadow: 0 1px 8px rgba(0, 0, 0, 0.75);
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 180ms ease;
+        pointer-events: none;
+    }
+    #crosshair.warn .warn-label {
+        opacity: 1;
+        visibility: visible;
+    }
+    #crosshair .aim-tip {
+        position: absolute;
+        left: 50%;
+        top: 22px;
+        transform: translateX(-50%);
+        white-space: nowrap;
+        font: 400 9px/1.2 ui-sans-serif, "Segoe UI", system-ui, sans-serif;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: rgba(219, 230, 242, 0.72);
+        text-shadow: 0 1px 8px rgba(0, 0, 0, 0.75);
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 220ms ease;
+        pointer-events: none;
+    }
+    #crosshair.show.teach:not(.warn) .aim-tip {
+        opacity: 1;
+        visibility: visible;
+    }
+    #crosshair .aim-tip b {
+        font-weight: 700;
+        color: inherit;
+        border: 1px solid rgba(219, 230, 242, 0.35);
+        border-radius: 3px;
+        padding: 0 4px 1px;
+        margin-right: 3px;
+    }
     #crosshair::before,
     #crosshair::after {
         content: "";
@@ -276,9 +334,9 @@
 <body>
     <canvas id="view" tabindex="0"></canvas>
 
-    <div id="hint">click to look &nbsp;·&nbsp; wasd to move &nbsp;·&nbsp; r to shoot &nbsp;·&nbsp; i to inspect &nbsp;·&nbsp; education · experience · projects</div>
+    <div id="hint">click to look &nbsp;·&nbsp; wasd to move &nbsp;·&nbsp; find the swineherd west &nbsp;·&nbsp; i to speak &nbsp;·&nbsp; education · experience · projects</div>
 
-    <div id="crosshair" aria-hidden="true"><span class="dot"></span></div>
+    <div id="crosshair" aria-hidden="true"><span class="dot"></span><span class="warn-label">sworn — do not shoot</span><span class="aim-tip"><b>R</b> draw &amp; shoot</span></div>
 
     <div id="mouse-unlock"><b>Esc</b> unlock mouse</div>
 
@@ -288,8 +346,8 @@
         <div><b>Shift</b> sprint</div>
         <div><b>Space</b> jump</div>
         <div><b>E</b> open project</div>
-        <div><b>R</b> shoot</div>
-        <div><b>I</b> inspect pillar</div>
+        <div><b>R</b> draw &amp; shoot</div>
+        <div><b>I</b> speak / inspect</div>
         <div><b>B</b> card book</div>
         <div><b>F</b> flip card</div>
     </div>

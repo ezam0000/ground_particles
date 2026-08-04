@@ -94,6 +94,8 @@ export class PlayerAvatar {
         this._shotFired = false;
         /** @type {import("../combat/bow.js").Bow|null} */
         this.bow = null;
+        /** False until Eumaeus gifts the bow (lost again on Zeus soft death). */
+        this.hasBow = false;
         /** @type {(() => Vector3)|null} look-dir provider from camera (crosshair) */
         this.getAimDir = null;
         /** @type {(() => Vector3)|null} camera world position for muzzle→ray aim */
@@ -491,6 +493,7 @@ export class PlayerAvatar {
 
     /** Fire bow: fast Archery_Shot, infinite ammo, aim = crosshair look dir. */
     playDraw() {
+        if (!this.hasBow) return;
         if (this._busy === "hit" || this._busy === "draw") return;
         if (this.controller.airborne || input.inspecting) return;
         const clip = this._draw;
@@ -785,7 +788,7 @@ export class PlayerAvatar {
         if (this.bow) {
             // Only while drawing — idle bone sockets aren't reliable, so we hide
             // the grip-cheat bow between shots instead of leaving it floating.
-            this.bow.setVisible(this._busy === "draw");
+            this.bow.setVisible(this.hasBow && this._busy === "draw");
         }
 
         const sky = this.sky;

@@ -35,6 +35,10 @@ import { Cyclops } from "./props/cyclops.js";
 import { DropCard } from "./props/cards/dropCard.js";
 import { CardBook } from "./props/cards/cardBook.js";
 import { has as hasCard } from "./props/cards/collection.js";
+import { Eumaeus } from "./props/eumaeus.js";
+import { Argos } from "./props/argos.js";
+import { ZeusDeath } from "./ui/zeusDeath.js";
+import { BowToast } from "./ui/bowToast.js";
 import { ArrowPool } from "./combat/arrows.js";
 import { Bow } from "./combat/bow.js";
 import { unlockAudio } from "./combat/sfx.js";
@@ -152,13 +156,19 @@ async function boot() {
 
     // Three plazas + the colossus south of spawn + Antinous (sun-summon).
     // Sheep pasture east of spawn; Polyphemus after the flock is wiped.
+    // Eumaeus + Argos west — bow gift gate.
     const pedestals = new Pedestals(scene, terrain, sky, shadows, depthPass, lights);
     const giant = new Giant(scene, terrain, sky, shadows, depthPass, lights);
     const antinous = new Antinous(scene, terrain, sky, shadows, depthPass, lights);
     const sheep = new SheepFlock(scene, terrain, sky, shadows, depthPass, lights);
     const cyclops = new Cyclops(scene, terrain, sky, shadows, depthPass, lights);
+    const eumaeus = new Eumaeus(scene, terrain, sky, shadows, depthPass, lights);
+    const argos = new Argos(scene, terrain, sky, shadows, depthPass, lights);
+    argos.leader = eumaeus;
     const dropCard = new DropCard();
     const cardBook = new CardBook();
+    const zeusDeath = new ZeusDeath();
+    const bowToast = new BowToast();
 
     // Bow combat: pooled arrows + procedural bow on the player's hand.
     const arrows = new ArrowPool(scene, terrain, sky, shadows, lights);
@@ -167,12 +177,15 @@ async function boot() {
     arrows.sheep = sheep;
     arrows.cyclops = cyclops;
     arrows.pedestals = pedestals;
+    arrows.eumaeus = eumaeus;
+    arrows.argos = argos;
     arrows.onGiantHit = (zone) => giant.playHit(zone);
     arrows.onAntinousHit = (zone) => antinous.playHit(zone);
     arrows.onSheepHit = (unit) => sheep.playHit(unit);
     arrows.onCyclopsHit = (zone) => cyclops.playHit(zone);
     const bow = new Bow(scene, sky, shadows, lights, arrows);
     avatar.bow = bow;
+    avatar.hasBow = false;
     avatar.getAimDir = () => {
         rig.getLookDir(_aim);
         return _aim;
@@ -191,6 +204,65 @@ async function boot() {
         rig.beginInspect(x, gy, z);
         dropCard.show(id);
     };
+
+    const grantBow = () => {
+        avatar.hasBow = true;
+        loading.setCrosshair(true);
+        loading.setCrosshairTeach(true);
+        // Never leave the grip mesh enabled outside a draw (reads as a dark blob).
+        bow.equipped = false;
+        bow.setVisible(false);
+    };
+
+    const revokeBow = () => {
+        avatar.hasBow = false;
+        loading.setCrosshair(false);
+        bow.equipped = false;
+        bow.setVisible(false);
+        bowToast.hide();
+    };
+
+    eumaeus.onGift = () => {
+        const firstCard = !hasCard("eumaeus");
+        grantBow();
+        if (firstCard) {
+            showDrop("eumaeus", eumaeus.x, eumaeus.z);
+        } else {
+            // Re-gift after Zeus (card already owned) — toast is the only cue.
+            bowToast.show({ restored: true });
+        }
+    };
+
+    const prevOnShot = avatar.onShot;
+    avatar.onShot = (aimDir) => {
+        loading.setCrosshairTeach(false);
+        bowToast.hide();
+        if (prevOnShot) prevOnShot(aimDir);
+    };
+
+    const strikeZeus = () => {
+        if (zeusDeath.visible) return;
+        arrows.clearFlying();
+        if (dropCard.visible) dropCard.hide();
+        if (cardBook.visible) cardBook.close();
+        if (rig.inspecting) rig.endInspect();
+        input.inspecting = false;
+        character.locked = true;
+        zeusDeath.show();
+    };
+    arrows.onSacredHit = strikeZeus;
+
+    const softRespawn = () => {
+        zeusDeath.hide();
+        revokeBow();
+        character.locked = false;
+        character.velocity.set(0, 0, 0);
+        if ("vy" in character) character.vy = 0;
+        character.position.set(0, terrain.heightAt(0, 0), 0);
+        if (rig.inspecting) rig.endInspect();
+        input.inspecting = false;
+    };
+
     cyclops.onDeath = () => showDrop("polyphemus", cyclops.x, cyclops.z);
     antinous.onDeath = () => showDrop("antinous", antinous.x, antinous.z);
 
@@ -226,6 +298,11 @@ async function boot() {
     await sheep.warmUp();
     cyclops.update(0, character.position, rig.camera.position, getLerped());
     await cyclops.warmUp();
+    eumaeus.update(0, rig.camera.position, getLerped());
+    await eumaeus.warmUp();
+    argos.update(0, rig.camera.position, getLerped());
+    await argos.warmUp();
+    await zeusDeath.warmUp();
     await whenReady(sky.material, "sky material", [sky.mesh, false]);
     await depthPass.warmUp();
     post.update(0, rig.distance);
@@ -257,12 +334,16 @@ async function boot() {
         pollInput();
         updateEnv(dt);
 
-        if (dropCard.visible) {
+        if (zeusDeath.visible) {
+            if (input.openPressed) softRespawn();
+        } else if (dropCard.visible) {
             if (input.flipPressed) dropCard.toggleFlip();
             if (input.openPressed) {
+                const taughtBow = dropCard.activeId === "eumaeus";
                 dropCard.hide();
                 character.locked = false;
                 if (rig.inspecting) rig.endInspect();
+                if (taughtBow && avatar.hasBow) bowToast.show();
             }
         } else if (cardBook.visible) {
             if (input.flipPressed) cardBook.toggleFlip();
@@ -279,7 +360,18 @@ async function boot() {
             } else if (!antinous.pollRevive(character.position)) {
                 let awarded = false;
                 if (!input.inspecting && !rig.inspecting) {
-                    if (!hasCard("laestrygonians")) {
+                    if (eumaeus.pollGift(character.position, !avatar.hasBow)) {
+                        awarded = true;
+                    }
+                    if (!awarded && !hasCard("argos")) {
+                        const a = argos.pollCardInspect(character.position);
+                        if (a) {
+                            showDrop("argos", a.x, a.z);
+                            argos.ascend(spray);
+                            awarded = true;
+                        }
+                    }
+                    if (!awarded && !hasCard("laestrygonians")) {
                         const g = giant.pollCardInspect(character.position);
                         if (g) {
                             showDrop("laestrygonians", g.x, g.z);
@@ -304,6 +396,8 @@ async function boot() {
         antinous.resolveCollision(character.position);
         sheep.resolveCollision(character.position);
         cyclops.resolveCollision(character.position);
+        eumaeus.resolveCollision(character.position);
+        argos.resolveCollision(character.position);
         terrain.heightfield.clampToPlayArea(character.position);
         contact.update(dt);
 
@@ -334,8 +428,18 @@ async function boot() {
             avatar.playHit();
         }
         antinous.update(dt, character.position, rig.camera.position, getLerped());
+        eumaeus.update(dt, rig.camera.position, getLerped());
+        eumaeus.updateTalkHint(character.position, !avatar.hasBow);
+        argos.update(dt, rig.camera.position, getLerped());
         avatar.update(dt, rig.camera.position, getLerped());
         rig.getLookDir(_aim);
+        if (avatar.hasBow) {
+            const cam = rig.camera.position;
+            const warn =
+                argos.aimHit(cam.x, cam.y, cam.z, _aim.x, _aim.y, _aim.z) ||
+                eumaeus.aimHit(cam.x, cam.y, cam.z, _aim.x, _aim.y, _aim.z);
+            loading.setCrosshairWarn(warn);
+        }
         bow.update(dt, rig.camera.position, getLerped(), _aim);
         arrows.update(dt, rig.camera.position, getLerped());
         // Pedestals just refilled the light pool — push it into the rest of the scene.
@@ -355,7 +459,8 @@ async function boot() {
 
     globalThis.DUNES = {
         engine, scene, rig, character, avatar, contact, spray, pedestals, giant,
-        antinous, sheep, cyclops, dropCard, cardBook, bow, arrows,
+        antinous, sheep, cyclops, eumaeus, argos, dropCard, cardBook, zeusDeath,
+        bowToast, bow, arrows,
         terrain, sky, shadows, post, depthPass,
         S, input,
     };

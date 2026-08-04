@@ -44,11 +44,30 @@ export async function done() {
     void stopBootMusic({ fadeMs: 700 });
     root?.classList.add("gone");
     hint?.classList.add("show");
-    crosshair?.classList.add("show");
+    // Crosshair waits until Eumaeus gifts the bow (main.js toggles .show).
     setTimeout(() => {
         root?.remove();
         hint?.classList.remove("show");
     }, 6000);
+}
+
+/** Show or hide the centre aim reticle. */
+export function setCrosshair(on) {
+    crosshair?.classList.toggle("show", !!on);
+    if (!on) {
+        crosshair?.classList.remove("warn");
+        crosshair?.classList.remove("teach");
+    }
+}
+
+/** Amber sacred-NPC aim cue. */
+export function setCrosshairWarn(on) {
+    crosshair?.classList.toggle("warn", !!on);
+}
+
+/** Under-crosshair “R draw & shoot” coach mark. */
+export function setCrosshairTeach(on) {
+    crosshair?.classList.toggle("teach", !!on);
 }
 
 export function fail(message) {

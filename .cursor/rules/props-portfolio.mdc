@@ -1,5 +1,5 @@
 ---
-description: Pillars, giant, Antinous, sheep flock, Polyphemus cyclops
+description: Pillars, giant, Antinous, sheep flock, Polyphemus cyclops, Eumaeus/Argos
 globs: src/props/**/*.js,src/portfolio/**/*.js
 alwaysApply: false
 ---
@@ -42,14 +42,20 @@ alwaysApply: false
 - **Headshot only** starts ~4.5s enrage (chase `Running` + one `Charged_Upward_Slash` if in range). Body hits = pain + react, no enrage.
 - Dies from **5 headshots inside 15s** (rolling queue). Death → `cyclops_death.mp3` + corpse → collectible drop (`polyphemus` card).
 
+## Eumaeus + Argos
+
+- West spawn `(-24, 14)`. Eumaeus sits (`Sit_Cross_Legged`) until **I** (gift range) → stand VO `eumaeus_bow.mp3`, grant **bow** + Eumaeus card (once), then limp-patrol only (`Limping_Walk_*`, no normal walk).
+- Argos follows Eumaeus; **I** → Argos card + bark + particle ascend (gone for session).
+- **No bow / no crosshair** until gift. Zeus soft death if either is shot: fullscreen art + `zeus_death.mp3`, **E** respawn at origin, **lose bow**, **keep cards**. Soft aim warn on crosshair while looking at them.
+- Before bow, **I** prefers Eumaeus gift over Argos inspect.
+
 ## Collectible cards ([`src/props/cards/`](src/props/cards/))
 
 - Catalog + `localStorage` collection (`dunes.cards.v1`).
-- Death drops: Antinoös / Polyphemus. Inspect awards: Laestrygonians (giant) / Sheep (peaceful flock).
+- Death drops: Antinoös / Polyphemus. Inspect: Laestrygonians / Sheep / Argos. Gift: Eumaeus.
 - Drop overlay: **F** flip lore, **E** continue. **B** opens card book (browse ←→, flip F, close B).
-- Antinous `onDeath` fires when the death clip ends (same as cyclops).
 
 ## Assets
 
-- Models under `public/assets/odyssey/models/` (`sheep.glb`, `cyclops.glb`, …). Crush before commit.
-- Cards: `odyssey/antinous_card.png`, `odyssey/polyphemus_card.png`, `odyssey/laestrygonians_card.png`, `odyssey/sheep_card.png`.
+- Models under `public/assets/odyssey/models/` (`sheep.glb`, `cyclops.glb`, `eumaeus.glb`, `argos.glb`, …). Crush before commit.
+- Cards: `antinous`, `polyphemus`, `laestrygonians`, `sheep`, `eumaeus`, `argos` under `odyssey/*_card.png`. Zeus death: `odyssey/zeus_death.png`.
