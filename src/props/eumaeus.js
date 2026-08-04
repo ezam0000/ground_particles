@@ -269,19 +269,26 @@ export class Eumaeus {
     }
 
     /**
-     * Look-ray proximity for aim warn (XZ + height band).
+     * Look-ray proximity for aim warn. Closest approach in XZ along the 3D ray
+     * (must divide by dx²+dz² — bare dot fails on pitched OTS aim).
      * @param {number} ox @param {number} oy @param {number} oz origin
      * @param {number} dx @param {number} dy @param {number} dz unit dir
      */
     aimHit(ox, oy, oz, dx, dy, dz) {
+        if (!this.present) return false;
         const gx = this.x - ox;
         const gz = this.z - oz;
-        const t = gx * dx + gz * dz;
-        if (t < 0.4 || t > 28) return false;
-        const cx = ox + dx * t;
+        const d2 = dx * dx + dz * dz;
+        if (d2 < 1e-6) return false;
+        const t = (gx * dx + gz * dz) / d2;
+        if (t < 0.35 || t > 40) return false;
+        const lx = gx - dx * t;
+        const lz = gz - dz * t;
+        const r = this.bodyRadius + this.hitPad + 0.35;
+        if (lx * lx + lz * lz > r * r) return false;
         const cy = oy + dy * t;
-        const cz = oz + dz * t;
-        return this.hitTest(cx, cy, cz);
+        const ground = this.terrain.heightAt(this.x, this.z);
+        return cy >= ground - 0.45 && cy <= ground + this.height + 0.7;
     }
 
     /** @param {Vector3} pos */
