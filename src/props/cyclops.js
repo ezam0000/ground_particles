@@ -18,11 +18,13 @@ import { bindMatrixArray, whenReady } from "../core/gpuUtil.js";
 import { getLerped } from "../core/envProfile.js";
 import { SPELL_LIGHT_UNIFORMS } from "../spells/spellLights.js";
 import { angleDamp } from "../character/controller.js";
-import { preloadSfx, playSfx, unlockAudio } from "../combat/sfx.js";
+import { preloadSfx, playSfx, playVo, unlockAudio } from "../combat/sfx.js";
 
 const MODEL = "/assets/odyssey/models/cyclops.glb";
 const PAIN_SFX = "/assets/sfx/cyclops_pain.mp3";
-const DEATH_SFX = "/assets/sfx/cyclops_death.mp3";
+const DEATH_SFX = "/assets/sfx/cyclops_at_dead.mp3";
+const DEATH_LINE =
+    "Πάτερ Ποσειδώνα, με τύφλωσαν. Εκδίκηση, πατέρα! Εκδίκηση για μένα. Ποσειδώνα! Εκδίκηση για μένα!";
 const HEADSHOT_SFX = "/assets/sfx/headshot.mp3";
 const PAIN_VOL = 0.72;
 const DEATH_VOL = 0.8;
@@ -418,7 +420,7 @@ export class Cyclops {
         this._enraged = false;
         this._attacking = false;
         unlockAudio();
-        playSfx(DEATH_SFX, DEATH_VOL);
+        playVo(DEATH_SFX, DEATH_VOL, DEATH_LINE);
 
         const clip = this._dieClip;
         if (this._anim) this._anim.stop();

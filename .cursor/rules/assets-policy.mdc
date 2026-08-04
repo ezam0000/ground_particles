@@ -24,6 +24,7 @@ public/assets/odyssey/argos_card.png                # dog inspect card
 public/assets/odyssey/zeus_death.png                # sacred-NPC Zeus death fullscreen
 public/assets/portfolio/org/*                       # edu/job logos only
 public/assets/sfx/*.mp3                             # bow, impacts, headshot, giant/antinous/sheep/cyclops/argos/eumaeus/zeus VO
+public/assets/ui/compass.svg                        # HUD compass (MDI / Iconify)
 public/assets/boot/loading_screen_background.mp4    # boot loop
 public/assets/boot/loading_{1,2}.mp3                # random boot music (stereo ~96k)
 ```
@@ -59,7 +60,7 @@ Env detail: RG = tangent normal XY (`n*0.5+0.5`), B = cavity, A = height. Missin
 
 - `src/combat/sfx.js` — Web Audio, no per-frame alloc. Unlock on pointer-lock / first shot.
 - Trim leading silence on one-shots. Prefer **mono ~22 kHz / 64 kbps MP3**.
-- Combat VO set includes bow, pillar/arrow impact, headshot, giant hit/roar, Antinous summon/impact/death/will_not, sheep baas, cyclops pain/death.
+- Combat VO set includes bow, pillar/arrow impact, headshot, giant hit/roar, Antinous summon/impact/death/will_not, sheep baas, cyclops pain/death VO (`cyclops_at_dead`), Argos bark, Eumaeus bow, Zeus. Spoken lines use `playVo` + [`src/ui/subtitles.js`](src/ui/subtitles.js).
 
 ## Boot
 

@@ -40,9 +40,11 @@ import { Argos } from "./props/argos.js";
 import { ZeusDeath } from "./ui/zeusDeath.js";
 import { BowToast } from "./ui/bowToast.js";
 import { HealthBars } from "./ui/healthBars.js";
+import { Subtitles } from "./ui/subtitles.js";
+import { Compass } from "./ui/compass.js";
 import { ArrowPool } from "./combat/arrows.js";
 import { Bow } from "./combat/bow.js";
-import { unlockAudio } from "./combat/sfx.js";
+import { unlockAudio, setVoSubtitleHandler } from "./combat/sfx.js";
 import { updateEnv, getLerped } from "./core/envProfile.js";
 import { whenReady } from "./core/gpuUtil.js";
 import * as loading from "./core/loading.js";
@@ -171,6 +173,43 @@ async function boot() {
     const zeusDeath = new ZeusDeath();
     const bowToast = new BowToast();
     const healthBars = new HealthBars(scene);
+    const subtitles = new Subtitles();
+    const compass = new Compass();
+    setVoSubtitleHandler((text, dur) => subtitles.show(text, dur));
+
+    /** Nearest incomplete Odyssey objective for the compass needle. */
+    const objectiveAt = () => {
+        if (!avatar.hasBow) return { x: eumaeus.x, z: eumaeus.z, label: "Eumaeus" };
+        if (!hasCard("argos") && argos.present) return { x: argos.x, z: argos.z, label: "Argos" };
+        if (!sheep.allDead) {
+            let best = null;
+            let bestD = Infinity;
+            for (const s of sheep.sheep) {
+                if (!s.alive) continue;
+                const dx = s.x - character.position.x;
+                const dz = s.z - character.position.z;
+                const d2 = dx * dx + dz * dz;
+                if (d2 < bestD) {
+                    bestD = d2;
+                    best = s;
+                }
+            }
+            if (best) return { x: best.x, z: best.z, label: "Pasture" };
+            return { x: 28, z: -12, label: "Pasture" };
+        }
+        if (!cyclops._spawned || cyclops.alive) {
+            if (cyclops._spawned && cyclops.alive) {
+                return { x: cyclops.x, z: cyclops.z, label: "Polyphemus" };
+            }
+            return { x: 28, z: -12, label: "Polyphemus" };
+        }
+        if (antinous._spawned && antinous.alive) {
+            return { x: antinous.x, z: antinous.z, label: "Antinoös" };
+        }
+        if (!hasCard("laestrygonians")) return { x: giant.x, z: giant.z, label: "Giant" };
+        if (!hasCard("sheep")) return { x: 28, z: -12, label: "Sheep" };
+        return null;
+    };
 
     // Bow combat: pooled arrows + procedural bow on the player's hand.
     const arrows = new ArrowPool(scene, terrain, sky, shadows, lights);
@@ -423,6 +462,7 @@ async function boot() {
 
         _vel.copyFrom(character.velocity);
         rig.update(dt, character.position, _vel, character.lean, character.speed01);
+        compass.update(rig.yaw, objectiveAt(), character.position.x, character.position.z);
 
         // Jitters the projection and republishes everything the screen-space
         // passes derive from the camera. Must be after the rig has moved and
@@ -504,7 +544,7 @@ async function boot() {
     globalThis.DUNES = {
         engine, scene, rig, character, avatar, contact, spray, pedestals, giant,
         antinous, sheep, cyclops, eumaeus, argos, dropCard, cardBook, zeusDeath,
-        bowToast, healthBars, bow, arrows,
+        bowToast, healthBars, subtitles, compass, bow, arrows,
         terrain, sky, shadows, post, depthPass,
         S, input,
     };

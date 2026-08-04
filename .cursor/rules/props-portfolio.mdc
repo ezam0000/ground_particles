@@ -30,7 +30,7 @@ alwaysApply: false
 ## Antinous ([`src/props/antinous.js`](src/props/antinous.js))
 
 - Spawns after **5** sun-aimed shots. Patrol-only; dies at **20** damage (body **+1**, head **+3**). Corpse + **I** revive. Crush before commit.
-- Proximity terracotta HP bar drains with damage; flashes on hit.
+- 5th arrow land → `antinous_will_not.mp3` + subtitle. Proximity terracotta HP bar drains with damage; flashes on hit.
 
 ## Sheep ([`src/props/sheep.js`](src/props/sheep.js))
 
@@ -43,7 +43,7 @@ alwaysApply: false
 - Hidden until sheep flock wiped → `Dive_Down_and_Land_2` then **calm patrol**.
 - **Headshot only** starts permanent enrage (chase `Running` + `Charged_Upward_Slash` when close). Body hits = pain + react, no calm return once enraged.
 - Melee connects only on near contact (hand/body); triggers player knockdown. Attack starts ~2 m out with a short windup lunge so meshes meet.
-- Dies from **5 headshots inside 15s** (rolling queue). Death → `cyclops_death.mp3` + corpse → collectible drop (`polyphemus` card).
+- Dies from **5 headshots inside 15s** (rolling queue). Death → `cyclops_at_dead.mp3` + Greek subtitle + corpse → collectible drop (`polyphemus` card).
 - Proximity **5-pip** bar = remaining headshots in the window; body hits flash only (no pip loss).
 
 ## Health bars ([`src/ui/healthBars.js`](src/ui/healthBars.js))
@@ -52,7 +52,7 @@ alwaysApply: false
 
 ## Eumaeus + Argos
 
-- West spawn `(-24, 14)`. Eumaeus sits (`Sit_Cross_Legged`) until **I** (gift range) → stand VO `eumaeus_bow.mp3`, grant **bow** + Eumaeus card (once), then limp-patrol only (`Limping_Walk_*`, no normal walk).
+- West spawn `(-24, 14)`. Eumaeus sits (`Sit_Cross_Legged`) until **I** (gift range) → stand VO `eumaeus_bow.mp3` + subtitle, grant **bow** + Eumaeus card (once), then limp-patrol only (`Limping_Walk_*`, no normal walk).
 - Argos follows Eumaeus; **I** → Argos card + bark + particle ascend (gone for session). Inspect hint when near; range ~5 m.
 - **I priority:** when both in range, nearer NPC wins (Argos inspect vs Eumaeus gift). After bow, gift is inert so Argos inspect always available if card missing.
 - **No bow / no crosshair** until gift. Zeus soft death if either is shot: fullscreen art + `zeus_death.mp3`, **E** respawn at origin, **lose bow**, **keep cards**. Soft aim warn on crosshair while looking at them.

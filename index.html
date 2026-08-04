@@ -164,7 +164,7 @@
     #argos-inspect {
         position: fixed;
         left: 50%;
-        bottom: 18vh;
+        bottom: 20vh;
         z-index: 55;
         transform: translateX(-50%);
         font-size: 11px;
@@ -185,7 +185,28 @@
         margin-right: 4px;
     }
 
-    /* Persistent Mac-friendly key cheat sheet — bottom-left corner. */
+    /* Dark blurred footer so hotkeys and bottom prompts stay readable. */
+    #hud-footer {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 15vh;
+        z-index: 49;
+        pointer-events: none;
+        background: linear-gradient(
+            to top,
+            rgba(8, 6, 4, 0.78) 0%,
+            rgba(8, 6, 4, 0.45) 45%,
+            rgba(8, 6, 4, 0) 100%
+        );
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        mask-image: linear-gradient(to top, #000 35%, transparent 100%);
+        -webkit-mask-image: linear-gradient(to top, #000 35%, transparent 100%);
+    }
+
+    /* Persistent Mac-friendly key cheat sheet — bottom-left on the footer. */
     #keys {
         position: fixed;
         left: 14px;
@@ -193,8 +214,8 @@
         z-index: 50;
         pointer-events: none;
         font: 400 10px/1.55 ui-monospace, "SF Mono", Menlo, monospace;
-        color: rgba(219, 230, 242, 0.38);
-        text-shadow: 0 1px 10px rgba(0, 0, 0, 0.75);
+        color: rgba(240, 230, 210, 0.55);
+        text-shadow: 0 1px 10px rgba(0, 0, 0, 0.85);
         user-select: none;
     }
 
@@ -202,7 +223,7 @@
         display: inline-block;
         min-width: 5.6em;
         font-weight: 500;
-        color: rgba(219, 230, 242, 0.62);
+        color: rgba(245, 232, 210, 0.82);
         letter-spacing: 0.04em;
     }
 
@@ -341,6 +362,8 @@
     <div id="crosshair" aria-hidden="true"><span class="dot"></span><span class="warn-label">sworn — do not shoot</span><span class="aim-tip"><b>R</b> draw &amp; shoot</span></div>
 
     <div id="mouse-unlock"><b>Esc</b> unlock mouse</div>
+
+    <div id="hud-footer" aria-hidden="true"></div>
 
     <div id="keys">
         <div><b>click</b> look / aim</div>

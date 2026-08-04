@@ -73,3 +73,37 @@ export function playSfx(url, volume = 0.5) {
     void a.play().catch(() => {});
     if (!_buffers.has(url)) void preloadSfx(url);
 }
+
+/**
+ * Duration of a preloaded clip in seconds (0 if unknown).
+ * @param {string} url
+ */
+export function sfxDuration(url) {
+    const buf = _buffers.get(url);
+    return buf ? buf.duration : 0;
+}
+
+/** @type {((text: string, durationSec: number) => void)|null} */
+let _onVoSubtitle = null;
+
+/**
+ * Hook VO captions (set once from main / Subtitles).
+ * @param {((text: string, durationSec: number) => void)|null} fn
+ */
+export function setVoSubtitleHandler(fn) {
+    _onVoSubtitle = fn;
+}
+
+/**
+ * Spoken line: play clip and show subtitle for its duration.
+ * @param {string} url
+ * @param {number} volume
+ * @param {string} text
+ */
+export function playVo(url, volume, text) {
+    playSfx(url, volume);
+    if (!text || !_onVoSubtitle) return;
+    const dur = sfxDuration(url);
+    const fallback = Math.min(14, Math.max(2.5, text.length * 0.055));
+    _onVoSubtitle(text, dur > 0.2 ? dur : fallback);
+}

@@ -211,13 +211,16 @@ export class ArrowPool {
             if (i === 0) {
                 protoRoot.parent = root;
                 protoRoot.position.setAll(0);
-                protoRoot.rotationQuaternion = _tipFix.clone();
+                // Tip flip is baked into flight/plant orient — keep child local identity
+                // so slot 0 matches clones (protoRoot tipFix made the first plant reverse).
+                protoRoot.rotationQuaternion = Quaternion.Identity();
                 protoRoot.setEnabled(true);
                 for (const m of protoMeshes) {
                     m.isPickable = false;
                     m.renderingGroupId = 1;
                     m.receiveShadows = true;
                     m.isVisible = false;
+                    if (!m.rotationQuaternion) m.rotationQuaternion = Quaternion.Identity();
                     mats.push(this._bindProp(m, "arrow0:" + m.name, albedoBySrc.get(m) || null));
                     meshes.push(m);
                 }
@@ -228,7 +231,7 @@ export class ArrowPool {
                     c.renderingGroupId = 1;
                     c.receiveShadows = true;
                     c.isVisible = false;
-                    c.rotationQuaternion = _tipFix.clone();
+                    c.rotationQuaternion = Quaternion.Identity();
                     mats.push(this._bindProp(c, "arrow" + i + ":" + src.name, albedoBySrc.get(src) || null));
                     meshes.push(c);
                 }
@@ -354,6 +357,7 @@ export class ArrowPool {
         this._orientFlight(slot);
     }
 
+    /** Look dir on root, composed with tipFix so authored −Z tip faces flight. */
     _orientFlight(i) {
         _dir.set(this._vx[i], this._vy[i], this._vz[i]);
         const s = _dir.length();
@@ -361,6 +365,7 @@ export class ArrowPool {
         _dir.scaleInPlace(1 / s);
         _up.set(0, 1, 0);
         Quaternion.FromLookDirectionLHToRef(_dir, _up, _orient);
+        _orient.multiplyInPlace(_tipFix);
         const root = this._roots[i];
         root.rotationQuaternion.copyFrom(_orient);
         root.position.set(this._px[i], this._py[i], this._pz[i]);
@@ -630,6 +635,7 @@ export class ArrowPool {
 
         _up.set(0, 1, 0);
         Quaternion.FromLookDirectionLHToRef(_dir, _up, _orient);
+        _orient.multiplyInPlace(_tipFix);
 
         const root = this._roots[i];
         if (root.detachFromBone) root.detachFromBone();

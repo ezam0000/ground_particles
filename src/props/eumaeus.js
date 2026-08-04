@@ -16,10 +16,11 @@ import { input } from "../core/input.js";
 import { bindMatrixArray, whenReady } from "../core/gpuUtil.js";
 import { SPELL_LIGHT_UNIFORMS } from "../spells/spellLights.js";
 import { angleDamp } from "../character/controller.js";
-import { preloadSfx, playSfx, unlockAudio } from "../combat/sfx.js";
+import { preloadSfx, playVo, unlockAudio } from "../combat/sfx.js";
 
 const MODEL = "/assets/odyssey/models/eumaeus.glb";
 const BOW_SFX = "/assets/sfx/eumaeus_bow.mp3";
+const BOW_LINE = "That's very clever, but your cleverness will get you in trouble";
 const BOW_VOL = 0.78;
 
 const SPAWN = { x: -24, z: 14 };
@@ -220,7 +221,7 @@ export class Eumaeus {
 
     _beginGift() {
         unlockAudio();
-        playSfx(BOW_SFX, BOW_VOL);
+        playVo(BOW_SFX, BOW_VOL, BOW_LINE);
         this._giftedOnce = true;
         this._hint.hidden = true;
         if (this.onGift) this.onGift();

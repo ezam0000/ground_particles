@@ -18,7 +18,7 @@ import { bindMatrixArray, whenReady } from "../core/gpuUtil.js";
 import { getLerped } from "../core/envProfile.js";
 import { SPELL_LIGHT_UNIFORMS } from "../spells/spellLights.js";
 import { angleDamp } from "../character/controller.js";
-import { preloadSfx, playSfx, unlockAudio } from "../combat/sfx.js";
+import { preloadSfx, playSfx, playVo, unlockAudio } from "../combat/sfx.js";
 import { input } from "../core/input.js";
 
 const MODEL = "/assets/odyssey/models/antinous.glb";
@@ -26,6 +26,7 @@ const SUMMON_SFX = "/assets/sfx/antinous_summon.mp3";
 const IMPACT_SFX = "/assets/sfx/antinous_impact.mp3";
 const DEATH_SFX = "/assets/sfx/antinous_death.mp3";
 const WILL_NOT_SFX = "/assets/sfx/antinous_will_not.mp3";
+const WILL_NOT_LINE = "Someone get this beggar out of here";
 const HEADSHOT_SFX = "/assets/sfx/headshot.mp3";
 const SUMMON_VOL = 0.7;
 const IMPACT_VOL = 0.55;
@@ -373,7 +374,7 @@ export class Antinous {
         unlockAudio();
         if (zone === "head") playSfx(HEADSHOT_SFX, HEADSHOT_VOL);
         else playSfx(IMPACT_SFX, IMPACT_VOL);
-        if (this._arrowHits === 5) playSfx(WILL_NOT_SFX, WILL_NOT_VOL);
+        if (this._arrowHits === 5) playVo(WILL_NOT_SFX, WILL_NOT_VOL, WILL_NOT_LINE);
 
         if (this._damage >= HITS_TO_KILL) {
             this._die(zone === "head" ? "chest" : zone);
