@@ -46,5 +46,5 @@ Input edges (`jumpPressed`, `emotePressed`, `drawPressed`, `openPressed`) clear 
 - Bow SFX: after 5 shots, volume drops to `0.35×` base.
 - Hit order: sheep → giant → cyclops → antinous → pillar.
 - Giant melee = contact window; Antinous = sun spawn / 20 hits / I-revive.
-- Sheep: 2 hits → flock wipe → cyclops spawn. Cyclops: calm until headshot enrage; 5 heads / 15s to kill → Polyphemus card.
+- Sheep: 2 hits → flock wipe → cyclops spawn. Cyclops: calm until headshot → permanent chase/attack until death; 5 heads / 15s to kill → Polyphemus card.
 - Pillars: detect `hitRadius`, plant `surfaceRadius`.

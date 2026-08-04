@@ -320,6 +320,7 @@ export class Pedestals {
             groundY,
             y: groundY + height * 0.55,
             root: clone,
+            solids,
         });
     }
 

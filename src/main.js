@@ -242,8 +242,9 @@ async function boot() {
         if (prevOnShot) prevOnShot(aimDir);
     };
 
-    const strikeZeus = () => {
+    const strikeZeus = (/** @type {"argos"|"eumaeus"} */ who) => {
         if (zeusDeath.visible) return;
+        if (who === "argos") argos.banish();
         arrows.clearFlying();
         if (dropCard.visible) dropCard.hide();
         if (cardBook.visible) cardBook.close();
@@ -362,17 +363,34 @@ async function boot() {
             } else if (!antinous.pollRevive(character.position)) {
                 let awarded = false;
                 if (!input.inspecting && !rig.inspecting) {
-                    if (eumaeus.pollGift(character.position, !avatar.hasBow)) {
+                    const pos = character.position;
+                    const needsArgosCard = !hasCard("argos");
+                    const argosNear = needsArgosCard && argos.inInspectRange(pos);
+                    const wantGift = !avatar.hasBow;
+                    let tryArgosFirst = argosNear;
+                    if (argosNear && wantGift) {
+                        const ad2 = argos.dist2To(pos);
+                        const edx = pos.x - eumaeus.x;
+                        const edz = pos.z - eumaeus.z;
+                        tryArgosFirst = ad2 <= edx * edx + edz * edz;
+                    }
+
+                    const takeArgos = () => {
+                        const a = argos.pollCardInspect(pos);
+                        if (!a) return false;
+                        showDrop("argos", a.x, a.z);
+                        argos.ascend(spray);
+                        return true;
+                    };
+
+                    if (tryArgosFirst && takeArgos()) {
+                        awarded = true;
+                    } else if (eumaeus.pollGift(pos, wantGift)) {
+                        awarded = true;
+                    } else if (!tryArgosFirst && argosNear && takeArgos()) {
                         awarded = true;
                     }
-                    if (!awarded && !hasCard("argos")) {
-                        const a = argos.pollCardInspect(character.position);
-                        if (a) {
-                            showDrop("argos", a.x, a.z);
-                            argos.ascend(spray);
-                            awarded = true;
-                        }
-                    }
+
                     if (!awarded && !hasCard("laestrygonians")) {
                         const g = giant.pollCardInspect(character.position);
                         if (g) {
@@ -426,12 +444,25 @@ async function boot() {
         sheep.update(dt, rig.camera.position, getLerped());
         cyclops.update(dt, character.position, rig.camera.position, getLerped());
         if (cyclops.didHit) {
-            character.applyHit(cyclops.x, cyclops.z);
+            character.applyHit(cyclops.x, cyclops.z, 5.4);
             avatar.playHit();
         }
         antinous.update(dt, character.position, rig.camera.position, getLerped());
         eumaeus.update(dt, rig.camera.position, getLerped());
-        eumaeus.updateTalkHint(character.position, !avatar.hasBow);
+        {
+            const pos = character.position;
+            const needsArgosCard = !hasCard("argos");
+            const argosNear = needsArgosCard && argos.inInspectRange(pos);
+            let preferArgosHint = argosNear && avatar.hasBow;
+            if (argosNear && !avatar.hasBow) {
+                const ad2 = argos.dist2To(pos);
+                const edx = pos.x - eumaeus.x;
+                const edz = pos.z - eumaeus.z;
+                preferArgosHint = ad2 <= edx * edx + edz * edz;
+            }
+            eumaeus.updateTalkHint(pos, !avatar.hasBow && !preferArgosHint);
+            argos.updateInspectHint(pos, preferArgosHint);
+        }
         argos.update(dt, rig.camera.position, getLerped());
         avatar.update(dt, rig.camera.position, getLerped());
         rig.getLookDir(_aim);

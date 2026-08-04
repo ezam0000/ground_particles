@@ -27,7 +27,7 @@ const COLLIDE_RADIUS = 0.48;
 const CHAR_RADIUS = 0.45;
 const BODY_R = 0.38;
 const HIT_PAD = 0.55;
-const INSPECT_RANGE = 4.2;
+const INSPECT_RANGE = 5.0;
 /** Orbit radius around Eumaeus while he sits / limps. */
 const ORBIT_R = 3.2;
 const ORBIT_SPEED = 0.7;
@@ -78,6 +78,13 @@ export class Argos {
         this._ascendT = 0;
         this._baseScale = 1;
         this._orbitA = 0;
+
+        /** Nearby inspect prompt (DOM). */
+        this._hint = document.createElement("div");
+        this._hint.id = "argos-inspect";
+        this._hint.innerHTML = "Press <b>I</b> to inspect Argos";
+        this._hint.hidden = true;
+        document.body.appendChild(this._hint);
 
         /** @type {import("@babylonjs/core/Meshes/transformNode").TransformNode|null} */
         this._root = null;
@@ -172,9 +179,38 @@ export class Argos {
         const dx = playerPos.x - this.x;
         const dz = playerPos.z - this.z;
         if (dx * dx + dz * dz > INSPECT_RANGE * INSPECT_RANGE) return null;
+        input.inspectPressed = false;
         unlockAudio();
         playSfx(BARK_SFX, BARK_VOL);
+        this._hint.hidden = true;
         return { x: this.x, z: this.z };
+    }
+
+    /**
+     * Show inspect hint when near and the card is still available.
+     * @param {Vector3} playerPos
+     * @param {boolean} needsCard
+     */
+    updateInspectHint(playerPos, needsCard) {
+        if (!needsCard || !this.present) {
+            this._hint.hidden = true;
+            return;
+        }
+        const dx = playerPos.x - this.x;
+        const dz = playerPos.z - this.z;
+        this._hint.hidden = dx * dx + dz * dz > INSPECT_RANGE * INSPECT_RANGE;
+    }
+
+    /** XZ distance² to player (for inspect priority). */
+    dist2To(playerPos) {
+        const dx = playerPos.x - this.x;
+        const dz = playerPos.z - this.z;
+        return dx * dx + dz * dz;
+    }
+
+    /** True when player is within inspect range. */
+    inInspectRange(playerPos) {
+        return this.present && this.dist2To(playerPos) <= INSPECT_RANGE * INSPECT_RANGE;
     }
 
     /**
@@ -186,6 +222,7 @@ export class Argos {
         this._ascending = true;
         this._ascendT = 0;
         this._setWalk(false);
+        this._hint.hidden = true;
         const gy = this.terrain.heightAt(this.x, this.z) + 0.25;
         for (let i = 0; i < 28; i++) {
             const a = (i / 28) * Math.PI * 2;
@@ -203,9 +240,17 @@ export class Argos {
         }
     }
 
+    /** Permanent session remove (sacred shot or post-ascend). */
+    banish() {
+        this._hint.hidden = true;
+        this._setWalk(false);
+        this._hide();
+    }
+
     _hide() {
         this.visible = false;
         this._ascending = false;
+        this._hint.hidden = true;
         if (this._root) this._root.setEnabled(false);
         if (this._mesh) this._mesh.isVisible = false;
     }

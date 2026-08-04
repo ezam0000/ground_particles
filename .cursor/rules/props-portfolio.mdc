@@ -41,7 +41,8 @@ alwaysApply: false
 ## Polyphemus / Cyclops ([`src/props/cyclops.js`](src/props/cyclops.js))
 
 - Hidden until sheep flock wiped → `Dive_Down_and_Land_2` then **calm patrol**.
-- **Headshot only** starts ~4.5s enrage (chase `Running` + one `Charged_Upward_Slash` if in range). Body hits = pain + react, no enrage.
+- **Headshot only** starts permanent enrage (chase `Running` + `Charged_Upward_Slash` when close). Body hits = pain + react, no calm return once enraged.
+- Melee connects only on near contact (hand/body); triggers player knockdown. Attack starts ~2 m out with a short windup lunge so meshes meet.
 - Dies from **5 headshots inside 15s** (rolling queue). Death → `cyclops_death.mp3` + corpse → collectible drop (`polyphemus` card).
 - Proximity **5-pip** bar = remaining headshots in the window; body hits flash only (no pip loss).
 
@@ -52,9 +53,10 @@ alwaysApply: false
 ## Eumaeus + Argos
 
 - West spawn `(-24, 14)`. Eumaeus sits (`Sit_Cross_Legged`) until **I** (gift range) → stand VO `eumaeus_bow.mp3`, grant **bow** + Eumaeus card (once), then limp-patrol only (`Limping_Walk_*`, no normal walk).
-- Argos follows Eumaeus; **I** → Argos card + bark + particle ascend (gone for session).
+- Argos follows Eumaeus; **I** → Argos card + bark + particle ascend (gone for session). Inspect hint when near; range ~5 m.
+- **I priority:** when both in range, nearer NPC wins (Argos inspect vs Eumaeus gift). After bow, gift is inert so Argos inspect always available if card missing.
 - **No bow / no crosshair** until gift. Zeus soft death if either is shot: fullscreen art + `zeus_death.mp3`, **E** respawn at origin, **lose bow**, **keep cards**. Soft aim warn on crosshair while looking at them.
-- Before bow, **I** prefers Eumaeus gift over Argos inspect.
+- Shooting **Argos** banishes him for the session (same end state as ascend). Soft respawn never restores him. Eumaeus stays so the bow can be re-gifted.
 
 ## Collectible cards ([`src/props/cards/`](src/props/cards/))
 

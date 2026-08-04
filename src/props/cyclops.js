@@ -1,8 +1,8 @@
 /**
  * Polyphemus — spawns after the sheep flock is wiped.
  *
- * Calm patrol by default. Headshots briefly enrage (chase + one swing).
- * Dies from 5 headshots inside a rolling 15s window.
+ * Calm patrol by default. First headshot permanently enrages (chase + slash
+ * until death). Dies from 5 headshots inside a rolling 15s window.
  */
 
 import "@babylonjs/loaders/glTF";
@@ -40,13 +40,17 @@ const RUN_SPEED = 3.4;
 const WALK_ANIM_SPEED = 1.0;
 const RUN_ANIM_SPEED = 1.05;
 
-const ENRAGE_DUR = 4.5;
-const ATTACK_RANGE = 4.2;
-const HIT_DELAY = 0.5;
-const HIT_WINDOW = 0.3;
-const HIT_CONTACT = COLLIDE_RADIUS + CHAR_RADIUS + 0.55;
-const HAND_HIT_R = 1.4;
-const BODY_PRESS = COLLIDE_RADIUS + CHAR_RADIUS + 0.25;
+/** Start slash only when already near the player (not from 4 m out). */
+const ATTACK_RANGE = 2.15;
+/** Chase plant distance — just outside collision shell. */
+const CHASE_STOP = 1.2;
+/** Windup close-in so the swinging hand reaches the avatar. */
+const LUNGE_SPEED = 2.2;
+const HIT_DELAY = 0.48;
+const HIT_WINDOW = 0.4;
+const HIT_CONTACT = COLLIDE_RADIUS + CHAR_RADIUS + 0.65;
+const HAND_HIT_R = 1.55;
+const BODY_PRESS = COLLIDE_RADIUS + CHAR_RADIUS + 0.35;
 
 const HEADS_TO_KILL = 5;
 const HEAD_WINDOW_MS = 15000;
@@ -127,7 +131,8 @@ export class Cyclops {
         this._corpse = false;
         this._reacting = false;
         this._attacking = false;
-        this._enrageT = 0;
+        /** Permanent chase after first headshot until death. */
+        this._enraged = false;
         this._hitT = 0;
         this._hitLanded = false;
         this.didHit = false;
@@ -260,7 +265,7 @@ export class Cyclops {
         this._corpse = false;
         this._headTimes.length = 0;
         this._hpFlash = 0;
-        this._enrageT = 0;
+        this._enraged = false;
 
         const ang = Math.random() * Math.PI * 2;
         const dist = 6 + Math.random() * 3;
@@ -313,7 +318,6 @@ export class Cyclops {
         }
         this._reacting = false;
         this._attacking = false;
-        this._enrageT = 0;
     }
 
     _playRun() {
@@ -346,7 +350,7 @@ export class Cyclops {
                 this._die();
                 return;
             }
-            this._enrageT = ENRAGE_DUR;
+            this._enraged = true;
         } else {
             playSfx(PAIN_SFX, PAIN_VOL);
         }
@@ -358,7 +362,7 @@ export class Cyclops {
         else if (zone === "chest" || zone === "head") clip = this._hitChest || clip;
         else clip = this._hitWaist || this._hitChest || this._hitBack;
         if (!clip) {
-            if (zone === "head" && this._enrageT > 0) this._playRun();
+            if (this._enraged) this._playRun();
             return;
         }
 
@@ -369,7 +373,7 @@ export class Cyclops {
         clip.onAnimationGroupEndObservable.clear();
         clip.onAnimationGroupEndObservable.addOnce(() => {
             if (!this.alive) return;
-            if (this._enrageT > 0) this._playRun();
+            if (this._enraged) this._playRun();
             else this._playCalm();
         });
         clip.start(false, 1.0);
@@ -411,7 +415,7 @@ export class Cyclops {
         if (this._dying || this._corpse) return;
         this._dying = true;
         this._alive = false;
-        this._enrageT = 0;
+        this._enraged = false;
         this._attacking = false;
         unlockAudio();
         playSfx(DEATH_SFX, DEATH_VOL);
@@ -510,7 +514,7 @@ export class Cyclops {
         this._attack.onAnimationGroupEndObservable.clear();
         this._attack.onAnimationGroupEndObservable.addOnce(() => {
             if (!this.alive) return;
-            if (this._enrageT > 0) this._playRun();
+            if (this._enraged) this._playRun();
             else this._playCalm();
         });
         this._attack.start(false, 1.0);
@@ -672,17 +676,10 @@ export class Cyclops {
         const h = Math.max(dt, 0);
         if (this._hpFlash > 0) this._hpFlash = Math.max(0, this._hpFlash - HP_FLASH_DECAY * h);
 
-        if (this._enrageT > 0) {
-            this._enrageT -= h;
-            if (this._enrageT <= 0 && !this._attacking && !this._reacting && this.alive) {
-                this._playCalm();
-            }
-        }
-
         const pdx = playerPos.x - this.x;
         const pdz = playerPos.z - this.z;
         const pDist = Math.hypot(pdx, pdz);
-        const enraged = this._enrageT > 0 && this.alive;
+        const enraged = this._enraged && this.alive;
 
         if (
             enraged &&
@@ -697,12 +694,22 @@ export class Cyclops {
 
         if (this._attacking && !this._reacting) {
             this._hitT += h;
+            // Windup lunge — close the last gap so the slash hand meets the player.
+            if (!this._hitLanded && this._hitT < HIT_DELAY + HIT_WINDOW && pDist > CHASE_STOP) {
+                const step = Math.min(pDist - CHASE_STOP, LUNGE_SPEED * h);
+                const inv = 1 / (pDist || 1);
+                this.x += pdx * inv * step;
+                this.z += pdz * inv * step;
+            }
+            const cdx = playerPos.x - this.x;
+            const cdz = playerPos.z - this.z;
+            const cDist = Math.hypot(cdx, cdz);
             if (
                 !this._hitLanded &&
                 this._hitT >= HIT_DELAY &&
                 this._hitT <= HIT_DELAY + HIT_WINDOW &&
-                this._facingPlayer(pdx, pdz, pDist) &&
-                this._inMeleeContact(playerPos, pDist)
+                this._facingPlayer(cdx, cdz, cDist) &&
+                this._inMeleeContact(playerPos, cDist)
             ) {
                 this._hitLanded = true;
                 this.didHit = true;
@@ -712,8 +719,8 @@ export class Cyclops {
         const busy = this._attacking || this._reacting || this._dying || this._corpse;
         if (!busy && h > 0 && this.alive) {
             if (enraged) {
-                if (pDist > 0.8) {
-                    const step = Math.min(pDist - 0.6, RUN_SPEED * h);
+                if (pDist > CHASE_STOP) {
+                    const step = Math.min(pDist - CHASE_STOP, RUN_SPEED * h);
                     const inv = 1 / (pDist || 1);
                     this.x += pdx * inv * step;
                     this.z += pdz * inv * step;

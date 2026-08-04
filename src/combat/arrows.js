@@ -11,6 +11,7 @@ import { RawTexture } from "@babylonjs/core/Materials/Textures/rawTexture";
 import { Constants } from "@babylonjs/core/Engines/constants";
 import { Vector3, Vector4, Color3, Quaternion, Matrix } from "@babylonjs/core/Maths/math";
 import { TransformNode } from "@babylonjs/core/Meshes/transformNode";
+import { Ray } from "@babylonjs/core/Culling/ray";
 
 import { S } from "../core/settings.js";
 import { bindMatrixArray, whenReady } from "../core/gpuUtil.js";
@@ -29,6 +30,14 @@ const HIT_RADIUS = 0.9;
 const GIANT_BODY_R = 0.42;
 /** How deep the tip digs past the surface (m). */
 const PENETRATE = 0.16;
+/** Mesh retract ray: back along flight dir from cylinder candidate. */
+const RETRACT_BACK = 1.25;
+const RETRACT_LEN = 2.6;
+/**
+ * Min −dir·n so shafts dig in (never lie parallel/flush).
+ * 0.55 ≈ 33° from the surface plane.
+ */
+const MIN_INTO = 0.55;
 /** Chest/head band starts this high above giant feet (m). */
 const CHEST_Y = 1.7;
 /** Giant face band (front only) — above this local Y is a headshot. */
@@ -56,7 +65,7 @@ const _tipFix = Quaternion.FromEulerAngles(0, Math.PI, 0);
 const BONE_SKIP = /armature|^char|toe|end$|front$/i;
 
 const _splits = new Vector4();
-const _fill = new Color3(0.45, 0.4, 0.32);
+const _fill = new Color3(0.55, 0.48, 0.38);
 const _dir = new Vector3();
 const _up = new Vector3(0, 1, 0);
 const _orient = new Quaternion();
@@ -70,6 +79,12 @@ const _keyPos = new Float32Array(24);
 const _keyCol = new Float32Array(24);
 const _min = new Vector3();
 const _max = new Vector3();
+const _rayOrigin = new Vector3();
+const _rayDir = new Vector3();
+const _ray = new Ray(Vector3.Zero(), Vector3.Forward(), 1);
+const _surf = new Vector3();
+const _n = new Vector3();
+const _tmpN = new Vector3();
 
 export class ArrowPool {
     /**
@@ -127,7 +142,7 @@ export class ArrowPool {
         this.eumaeus = null;
         /** @type {import("../props/argos.js").Argos|null} */
         this.argos = null;
-        /** @type {(() => void)|null} */
+        /** @type {((who: "argos"|"eumaeus") => void)|null} */
         this.onSacredHit = null;
 
         this._arrowScale = 1;
@@ -160,6 +175,28 @@ export class ArrowPool {
         }
         this._arrowScale = lenZ > 1e-4 ? ARROW_LEN / lenZ : 1;
 
+        // Capture authored albedos before we replace materials (clones must reuse these).
+        /** @type {Map<import("@babylonjs/core/Meshes/mesh").Mesh, import("@babylonjs/core/Materials/Textures/baseTexture").BaseTexture|null>} */
+        const albedoBySrc = new Map();
+        for (const m of protoMeshes) {
+            const old = m.material;
+            let tex = null;
+            if (old) {
+                tex =
+                    old.albedoTexture ||
+                    old.baseTexture ||
+                    old.diffuseTexture ||
+                    old.emissiveTexture ||
+                    null;
+            }
+            if (tex) {
+                tex.wrapU = Constants.TEXTURE_WRAP_ADDRESSMODE;
+                tex.wrapV = Constants.TEXTURE_WRAP_ADDRESSMODE;
+                tex.gammaSpace = true;
+            }
+            albedoBySrc.set(m, tex);
+        }
+
         for (let i = 0; i < POOL; i++) {
             const root = new TransformNode("arrowRoot" + i, this.scene);
             root.setEnabled(false);
@@ -181,7 +218,7 @@ export class ArrowPool {
                     m.renderingGroupId = 1;
                     m.receiveShadows = true;
                     m.isVisible = false;
-                    mats.push(this._bindProp(m, "arrow0:" + m.name));
+                    mats.push(this._bindProp(m, "arrow0:" + m.name, albedoBySrc.get(m) || null));
                     meshes.push(m);
                 }
             } else {
@@ -192,7 +229,7 @@ export class ArrowPool {
                     c.receiveShadows = true;
                     c.isVisible = false;
                     c.rotationQuaternion = _tipFix.clone();
-                    mats.push(this._bindProp(c, "arrow" + i + ":" + src.name));
+                    mats.push(this._bindProp(c, "arrow" + i + ":" + src.name, albedoBySrc.get(src) || null));
                     meshes.push(c);
                 }
             }
@@ -203,17 +240,12 @@ export class ArrowPool {
         }
     }
 
-    _bindProp(mesh, name) {
-        const old = mesh.material;
-        let albedoTex = null;
-        if (old) {
-            albedoTex =
-                old.albedoTexture ||
-                old.baseTexture ||
-                old.diffuseTexture ||
-                old.emissiveTexture ||
-                null;
-        }
+    /**
+     * @param {import("@babylonjs/core/Meshes/mesh").Mesh} mesh
+     * @param {string} name
+     * @param {import("@babylonjs/core/Materials/Textures/baseTexture").BaseTexture|null} albedoTex
+     */
+    _bindProp(mesh, name, albedoTex) {
         const mat = new ShaderMaterial(
             name, this.scene,
             { vertex: "prop", fragment: "prop" },
@@ -234,11 +266,12 @@ export class ArrowPool {
                 shaderLanguage: ShaderLanguage.WGSL,
             }
         );
-        mat.backFaceCulling = true;
+        // GLB is doubleSided — thin shaft needs both faces.
+        mat.backFaceCulling = false;
         mat.setColor3("albedoColor", Color3.White());
         mat.setFloat("useTex", albedoTex ? 1 : 0);
-        mat.setFloat("panelGlow", 0.05);
-        mat.setFloat("albedoGain", 1.15);
+        mat.setFloat("panelGlow", 0.1);
+        mat.setFloat("albedoGain", 1.12);
         mat.setColor3("fillRadiance", _fill.clone());
         mat.setFloat("keyLightCount", 0);
         mat.setArray4("keyLightPos", _keyPos);
@@ -251,7 +284,8 @@ export class ArrowPool {
                 false, false, Constants.TEXTURE_NEAREST_SAMPLINGMODE
             );
         }
-        mat.setTexture("albedoTex", albedoTex || ArrowPool._white);
+        const tex = albedoTex || ArrowPool._white;
+        mat.setTexture("albedoTex", tex);
         mesh.material = mat;
         return mat;
     }
@@ -369,7 +403,112 @@ export class ArrowPool {
     }
 
     /**
-     * Freeze arrow at impact with tip penetration.
+     * Raycast mesh for surface point + outward normal. Writes `_surf` / `_tmpN`.
+     * @param {import("@babylonjs/core/Meshes/mesh").Mesh} mesh
+     * @param {number} sx
+     * @param {number} sy
+     * @param {number} sz
+     * @param {number} dx
+     * @param {number} dy
+     * @param {number} dz
+     * @returns {boolean}
+     */
+    _pickSurface(mesh, sx, sy, sz, dx, dy, dz) {
+        if (!mesh) return false;
+        mesh.computeWorldMatrix(true);
+        if (mesh.skeleton) {
+            mesh.skeleton.computeAbsoluteTransforms();
+            mesh.refreshBoundingInfo(true, true);
+        }
+        _rayOrigin.set(sx - dx * RETRACT_BACK, sy - dy * RETRACT_BACK, sz - dz * RETRACT_BACK);
+        _rayDir.set(dx, dy, dz);
+        _ray.origin.copyFrom(_rayOrigin);
+        _ray.direction.copyFrom(_rayDir);
+        _ray.length = RETRACT_LEN;
+        const hit = mesh.intersects(_ray, true);
+        if (!hit?.hit || !hit.pickedPoint) return false;
+        _surf.copyFrom(hit.pickedPoint);
+        if (hit.getNormal) {
+            const gn = hit.getNormal(true, true);
+            if (gn && gn.lengthSquared() > 1e-8) {
+                _tmpN.copyFrom(gn);
+                _tmpN.normalize();
+                // Prefer outward (against flight).
+                if (_tmpN.x * dx + _tmpN.y * dy + _tmpN.z * dz > 0) {
+                    _tmpN.scaleInPlace(-1);
+                }
+                return true;
+            }
+        }
+        _tmpN.set(-dx, -dy, -dz);
+        return true;
+    }
+
+    /**
+     * Closest surface hit among meshes. Writes `_surf` and `_n`.
+     * @param {import("@babylonjs/core/Meshes/mesh").Mesh[]} meshes
+     * @param {number} sx
+     * @param {number} sy
+     * @param {number} sz
+     * @param {number} dx
+     * @param {number} dy
+     * @param {number} dz
+     * @returns {boolean}
+     */
+    _pickBestSurface(meshes, sx, sy, sz, dx, dy, dz) {
+        let bestD = Infinity;
+        let found = false;
+        let bx = 0, by = 0, bz = 0;
+        let nx = 0, ny = 0, nz = 0;
+        for (let i = 0; i < meshes.length; i++) {
+            if (!this._pickSurface(meshes[i], sx, sy, sz, dx, dy, dz)) continue;
+            const d = Math.hypot(
+                _surf.x - _rayOrigin.x,
+                _surf.y - _rayOrigin.y,
+                _surf.z - _rayOrigin.z
+            );
+            if (d < bestD) {
+                bestD = d;
+                found = true;
+                bx = _surf.x;
+                by = _surf.y;
+                bz = _surf.z;
+                nx = _tmpN.x;
+                ny = _tmpN.y;
+                nz = _tmpN.z;
+            }
+        }
+        if (!found) return false;
+        _surf.set(bx, by, bz);
+        _n.set(nx, ny, nz);
+        return true;
+    }
+
+    /**
+     * Bias `_dir` into the surface so −dir·n ≥ MIN_INTO (no flush/parallel shafts).
+     * `_n` must be unit outward normal.
+     */
+    _biasIntoSurface() {
+        const nl = Math.hypot(_n.x, _n.y, _n.z);
+        if (nl < 1e-6) return;
+        _n.x /= nl;
+        _n.y /= nl;
+        _n.z /= nl;
+        for (let k = 0; k < 5; k++) {
+            const into = -(_dir.x * _n.x + _dir.y * _n.y + _dir.z * _n.z);
+            if (into >= MIN_INTO) break;
+            _dir.x -= _n.x * 0.4;
+            _dir.y -= _n.y * 0.4;
+            _dir.z -= _n.z * 0.4;
+            const len = Math.hypot(_dir.x, _dir.y, _dir.z) || 1;
+            _dir.x /= len;
+            _dir.y /= len;
+            _dir.z /= len;
+        }
+    }
+
+    /**
+     * Freeze arrow at impact with tip penetration + min incidence angle.
      * @param {number} i
      * @param {number} x
      * @param {number} y
@@ -378,8 +517,8 @@ export class ArrowPool {
      * @param {number} dy
      * @param {number} dz
      * @param {"ground"|"giant"|"pillar"|"antinous"|"sheep"|"cyclops"} kind
-     * @param {{ x:number, z:number, radius:number, root: import("@babylonjs/core/Meshes/transformNode").TransformNode }|null} [pillar]
-     * @param {{ x:number, z:number, bodyRadius?:number, root?: import("@babylonjs/core/Meshes/transformNode").TransformNode, _mesh?: import("@babylonjs/core/Meshes/mesh").Mesh, _root?: import("@babylonjs/core/Meshes/transformNode").TransformNode }|null} [hostExtra]
+     * @param {{ x:number, z:number, radius:number, root: import("@babylonjs/core/Meshes/transformNode").TransformNode, solids?: import("@babylonjs/core/Meshes/mesh").Mesh[] }|null} [pillar]
+     * @param {{ x:number, z:number, bodyRadius?:number, root?: import("@babylonjs/core/Meshes/transformNode").TransformNode, _mesh?: import("@babylonjs/core/Meshes/mesh").Mesh, mesh?: import("@babylonjs/core/Meshes/mesh").Mesh, _root?: import("@babylonjs/core/Meshes/transformNode").TransformNode }|null} [hostExtra]
      */
     _plant(i, x, y, z, dx, dy, dz, kind, pillar = null, hostExtra = null) {
         _dir.set(dx, dy, dz);
@@ -389,9 +528,13 @@ export class ArrowPool {
         let sx = x;
         let sy = y;
         let sz = z;
+        let hx = x;
+        let hz = z;
 
         if (kind === "giant" && this.giant) {
             const g = this.giant;
+            hx = g.x;
+            hz = g.z;
             const ox = x - g.x;
             const oz = z - g.z;
             const horiz = Math.hypot(ox, oz) || 1;
@@ -400,6 +543,8 @@ export class ArrowPool {
             sy = y;
         } else if (kind === "cyclops" && this.cyclops) {
             const c = this.cyclops;
+            hx = c.x;
+            hz = c.z;
             const bodyR = c.bodyRadius || 0.48;
             const ox = x - c.x;
             const oz = z - c.z;
@@ -409,6 +554,8 @@ export class ArrowPool {
             sy = y;
         } else if (kind === "antinous" && this.antinous) {
             const a = this.antinous;
+            hx = a.x;
+            hz = a.z;
             const bodyR = a.bodyRadius || 0.32;
             const ox = x - a.x;
             const oz = z - a.z;
@@ -417,6 +564,8 @@ export class ArrowPool {
             sz = a.z + (oz / horiz) * bodyR;
             sy = y;
         } else if (kind === "sheep" && hostExtra) {
+            hx = hostExtra.x;
+            hz = hostExtra.z;
             const bodyR = hostExtra.bodyRadius || 0.28;
             const ox = x - hostExtra.x;
             const oz = z - hostExtra.z;
@@ -425,10 +574,11 @@ export class ArrowPool {
             sz = hostExtra.z + (oz / horiz) * bodyR;
             sy = y;
         } else if (kind === "pillar" && pillar) {
+            hx = pillar.x;
+            hz = pillar.z;
             const ox = x - pillar.x;
             const oz = z - pillar.z;
             const horiz = Math.hypot(ox, oz) || 1;
-            // Embed into the shaft (surfaceRadius), not the fat detect radius.
             const surfaceR = Math.max(
                 0.2,
                 (pillar.surfaceRadius ?? pillar.hitRadius ?? pillar.radius) - 0.08
@@ -438,12 +588,44 @@ export class ArrowPool {
             sy = y;
         }
 
-        // Mesh origin is mid-shaft; pull back so the tip (not the center) hits.
-        const mid = ARROW_LEN * 0.5 - PENETRATE;
+        // Fallback outward normal (radial XZ, or terrain up for ground).
+        if (kind === "ground") {
+            this.terrain.normalAt(sx, sz, _n);
+        } else {
+            const ox = sx - hx;
+            const oz = sz - hz;
+            const horiz = Math.hypot(ox, oz);
+            if (horiz > 1e-4) _n.set(ox / horiz, 0, oz / horiz);
+            else _n.set(-_dir.x, 0, -_dir.z);
+            if (_n.lengthSquared() < 1e-8) _n.set(0, 1, 0);
+            else _n.normalize();
+        }
+
+        _surf.set(sx, sy, sz);
+
+        const host =
+            kind === "giant" ? this.giant
+            : kind === "cyclops" ? this.cyclops
+            : kind === "antinous" ? this.antinous
+            : kind === "sheep" ? hostExtra
+            : null;
+        const hostMesh = host?._mesh || host?.mesh || null;
+
+        if (kind === "pillar" && pillar?.solids?.length) {
+            this._pickBestSurface(pillar.solids, sx, sy, sz, _dir.x, _dir.y, _dir.z);
+        } else if (hostMesh) {
+            if (this._pickSurface(hostMesh, sx, sy, sz, _dir.x, _dir.y, _dir.z)) {
+                _n.copyFrom(_tmpN);
+            }
+        }
+
+        this._biasIntoSurface();
+
+        // Tip digs along biased dir; mid-shaft sits behind tip.
         _pos.set(
-            sx - _dir.x * mid,
-            sy - _dir.y * mid,
-            sz - _dir.z * mid
+            _surf.x + _dir.x * PENETRATE - _dir.x * (ARROW_LEN * 0.5),
+            _surf.y + _dir.y * PENETRATE - _dir.y * (ARROW_LEN * 0.5),
+            _surf.z + _dir.z * PENETRATE - _dir.z * (ARROW_LEN * 0.5)
         );
 
         _up.set(0, 1, 0);
@@ -456,28 +638,21 @@ export class ArrowPool {
         root.rotationQuaternion.copyFrom(_orient);
         root.position.copyFrom(_pos);
 
-        const host =
-            kind === "giant" ? this.giant
-            : kind === "cyclops" ? this.cyclops
-            : kind === "antinous" ? this.antinous
-            : kind === "sheep" ? hostExtra
-            : null;
-        if (host?._mesh || host?.mesh) {
-            const mesh = host._mesh || host.mesh;
-            const bone = this._closestBone(mesh, _pos.x, _pos.y, _pos.z);
+        if (hostMesh) {
+            const bone = this._closestBone(hostMesh, _pos.x, _pos.y, _pos.z);
             if (bone) {
                 _boneWorld.copyFrom(bone.getAbsoluteTransform());
-                _boneWorld.multiplyToRef(mesh.getWorldMatrix(), _boneWorld);
+                _boneWorld.multiplyToRef(hostMesh.getWorldMatrix(), _boneWorld);
                 _boneWorld.invertToRef(_invBone);
                 Vector3.TransformCoordinatesToRef(_pos, _invBone, _localPos);
 
-                root.attachToBone(bone, mesh);
+                root.attachToBone(bone, hostMesh);
                 root.position.copyFrom(_localPos);
                 Quaternion.FromRotationMatrixToRef(_boneWorld, _localRot);
                 Quaternion.InverseToRef(_localRot, _localRot);
                 _localRot.multiplyToRef(_orient, _localRot);
                 root.rotationQuaternion.copyFrom(_localRot);
-                const wm = mesh.getWorldMatrix().m;
+                const wm = hostMesh.getWorldMatrix().m;
                 const sxn = Math.hypot(wm[0], wm[1], wm[2]) || 1;
                 root.scaling.setAll(this._arrowScale / sxn);
             } else if (host._root || host.root) {
@@ -683,12 +858,12 @@ export class ArrowPool {
 
             if (this.argos?.present && this.argos.hitTest(this._px[i], this._py[i], this._pz[i])) {
                 this._clearSlot(i);
-                if (this.onSacredHit) this.onSacredHit();
+                if (this.onSacredHit) this.onSacredHit("argos");
                 continue;
             }
             if (this.eumaeus?.present && this.eumaeus.hitTest(this._px[i], this._py[i], this._pz[i])) {
                 this._clearSlot(i);
-                if (this.onSacredHit) this.onSacredHit();
+                if (this.onSacredHit) this.onSacredHit("eumaeus");
                 continue;
             }
 
