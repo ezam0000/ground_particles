@@ -44,6 +44,10 @@ const WALK_SPEED = 1.15;
 const WALK_ANIM_SPEED = 1.0;
 const HITS_TO_KILL = 20;
 const INJURED_AT = 10;
+/** Headshot damage vs body hit of 1. */
+const HEAD_DAMAGE = 3;
+const HP_FLASH_DECAY = 6;
+const HP_SHOW_RANGE = 10;
 
 const TANTRUM_COOLDOWN = 10;
 const TANTRUM_CHANCE_PER_SEC = 0.12;
@@ -128,6 +132,10 @@ export class Antinous {
         this._arrowHits = 0;
         this._tantrumCd = 0;
         this._sunShots = 0;
+        /** 0..1 impact flash for health bar. */
+        this._hpFlash = 0;
+        /** Accumulated damage toward HITS_TO_KILL (head = HEAD_DAMAGE). */
+        this._damage = 0;
 
         /** @type {(() => void)|null} */
         this.onDeath = null;
@@ -161,6 +169,28 @@ export class Antinous {
 
     get alive() {
         return this._alive && !this._dying && !this._corpse;
+    }
+
+    /**
+     * Health bar snapshot when near the player (null = hide).
+     * @param {Vector3} playerPos
+     */
+    getHealthView(playerPos) {
+        if (!this.alive || !this._spawned || !this._root?.isEnabled()) return null;
+        const dx = playerPos.x - this.x;
+        const dz = playerPos.z - this.z;
+        if (dx * dx + dz * dz > HP_SHOW_RANGE * HP_SHOW_RANGE) return null;
+        const ground = this.terrain.heightAt(this.x, this.z);
+        return {
+            id: "antinous",
+            name: "Antinoös",
+            x: this.x,
+            y: ground + TARGET_HEIGHT * 0.95,
+            z: this.z,
+            kind: /** @type {"hp"} */ ("hp"),
+            ratio: 1 - Math.min(1, this._damage / HITS_TO_KILL),
+            flash: this._hpFlash,
+        };
     }
 
     /** True while a dead body is left on the sand. */
@@ -264,6 +294,8 @@ export class Antinous {
         this._spawned = true;
         this._alive = true;
         this._arrowHits = 0;
+        this._damage = 0;
+        this._hpFlash = 0;
         this._dying = false;
         this._corpse = false;
         this._hint.hidden = true;
@@ -312,7 +344,7 @@ export class Antinous {
     }
 
     _activeWalk() {
-        if (this._arrowHits >= INJURED_AT && this._injured) return this._injured;
+        if (this._damage >= INJURED_AT && this._injured) return this._injured;
         return this._walk || this._injured;
     }
 
@@ -334,13 +366,16 @@ export class Antinous {
     playHit(zone) {
         if (!this.alive) return;
 
+        const dmg = zone === "head" ? HEAD_DAMAGE : 1;
         this._arrowHits += 1;
+        this._damage += dmg;
+        this._hpFlash = 1;
         unlockAudio();
         if (zone === "head") playSfx(HEADSHOT_SFX, HEADSHOT_VOL);
         else playSfx(IMPACT_SFX, IMPACT_VOL);
         if (this._arrowHits === 5) playSfx(WILL_NOT_SFX, WILL_NOT_VOL);
 
-        if (this._arrowHits >= HITS_TO_KILL) {
+        if (this._damage >= HITS_TO_KILL) {
             this._die(zone === "head" ? "chest" : zone);
             return;
         }
@@ -420,6 +455,8 @@ export class Antinous {
         this._dying = false;
         this._alive = true;
         this._arrowHits = 0;
+        this._damage = 0;
+        this._hpFlash = 0;
         this._reacting = false;
         this._tantrum = false;
         this._tantrumCd = TANTRUM_COOLDOWN;
@@ -656,6 +693,7 @@ export class Antinous {
         this._hint.hidden = !this._nearCorpse(playerPos);
 
         const h = Math.max(dt, 0);
+        if (this._hpFlash > 0) this._hpFlash = Math.max(0, this._hpFlash - HP_FLASH_DECAY * h);
         this._tryTantrum(h);
 
         const busy = this._reacting || this._tantrum || this._dying || this._corpse;

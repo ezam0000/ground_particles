@@ -25,10 +25,12 @@ alwaysApply: false
 - Arrow zones via `playHit(zone)`; headshots = face-only (see combat).
 - Every **5th** arrow land → `giant_roar.mp3`. Stuck arrows: `attachToBone`.
 - Cannot be killed. **I** within ~7.5 m awards the **Laestrygonians** collectible (once).
+- Proximity **metal** health bar (`HealthBars`) — always full; flashes on arrow impact.
 
 ## Antinous ([`src/props/antinous.js`](src/props/antinous.js))
 
-- Spawns after **5** sun-aimed shots. Patrol-only; dies at **20**. Corpse + **I** revive. Crush before commit.
+- Spawns after **5** sun-aimed shots. Patrol-only; dies at **20** damage (body **+1**, head **+3**). Corpse + **I** revive. Crush before commit.
+- Proximity terracotta HP bar drains with damage; flashes on hit.
 
 ## Sheep ([`src/props/sheep.js`](src/props/sheep.js))
 
@@ -41,6 +43,11 @@ alwaysApply: false
 - Hidden until sheep flock wiped → `Dive_Down_and_Land_2` then **calm patrol**.
 - **Headshot only** starts ~4.5s enrage (chase `Running` + one `Charged_Upward_Slash` if in range). Body hits = pain + react, no enrage.
 - Dies from **5 headshots inside 15s** (rolling queue). Death → `cyclops_death.mp3` + corpse → collectible drop (`polyphemus` card).
+- Proximity **5-pip** bar = remaining headshots in the window; body hits flash only (no pip loss).
+
+## Health bars ([`src/ui/healthBars.js`](src/ui/healthBars.js))
+
+- Giant / Antinous / Cyclops only. World-projected DOM via `Vector3.ProjectToRef`; track from `main.js` after prop updates.
 
 ## Eumaeus + Argos
 

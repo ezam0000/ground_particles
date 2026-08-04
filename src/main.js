@@ -39,6 +39,7 @@ import { Eumaeus } from "./props/eumaeus.js";
 import { Argos } from "./props/argos.js";
 import { ZeusDeath } from "./ui/zeusDeath.js";
 import { BowToast } from "./ui/bowToast.js";
+import { HealthBars } from "./ui/healthBars.js";
 import { ArrowPool } from "./combat/arrows.js";
 import { Bow } from "./combat/bow.js";
 import { unlockAudio } from "./combat/sfx.js";
@@ -169,6 +170,7 @@ async function boot() {
     const cardBook = new CardBook();
     const zeusDeath = new ZeusDeath();
     const bowToast = new BowToast();
+    const healthBars = new HealthBars(scene);
 
     // Bow combat: pooled arrows + procedural bow on the player's hand.
     const arrows = new ArrowPool(scene, terrain, sky, shadows, lights);
@@ -449,6 +451,17 @@ async function boot() {
         terrain.update(rig.camera.position, character.position, dt);
         spray.update(dt, rig.camera.position);
 
+        healthBars.beginFrame();
+        {
+            const gv = giant.getHealthView(character.position);
+            if (gv) healthBars.track(gv);
+            const av = antinous.getHealthView(character.position);
+            if (av) healthBars.track(av);
+            const cv = cyclops.getHealthView(character.position);
+            if (cv) healthBars.track(cv);
+        }
+        healthBars.endFrame();
+
         scene.render();
         post.endFrame();
 
@@ -460,7 +473,7 @@ async function boot() {
     globalThis.DUNES = {
         engine, scene, rig, character, avatar, contact, spray, pedestals, giant,
         antinous, sheep, cyclops, eumaeus, argos, dropCard, cardBook, zeusDeath,
-        bowToast, bow, arrows,
+        bowToast, healthBars, bow, arrows,
         terrain, sky, shadows, post, depthPass,
         S, input,
     };

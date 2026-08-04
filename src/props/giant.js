@@ -28,6 +28,8 @@ const ROAR_SFX = "/assets/sfx/giant_roar.mp3";
 const ROAR_SFX_VOL = 0.72;
 /** Play a pain roar every N arrow hits. */
 const ROAR_EVERY = 5;
+const HP_FLASH_DECAY = 6;
+const HP_SHOW_RANGE = 14;
 
 /** World height of the giant, metres. Source mesh is ~3m tall. */
 const TARGET_HEIGHT = 3;
@@ -148,6 +150,8 @@ export class Giant {
         this._strikeBones = [];
         /** Arrow impacts landed (drives every-Nth roar). */
         this._arrowHits = 0;
+        /** 0..1 impact flash for the metal health bar. */
+        this._hpFlash = 0;
         this._ready = this._load();
         void preloadSfx(HIT_SFX);
         void preloadSfx(ROAR_SFX);
@@ -255,6 +259,7 @@ export class Giant {
      */
     playHit(zone) {
         this._arrowHits += 1;
+        this._hpFlash = 1;
         if (this._arrowHits % ROAR_EVERY === 0) {
             unlockAudio();
             playSfx(ROAR_SFX, ROAR_SFX_VOL);
@@ -277,6 +282,27 @@ export class Giant {
         });
         clip.start(false, 1.0);
         this._anim = clip;
+    }
+
+    /**
+     * @param {Vector3} playerPos
+     */
+    getHealthView(playerPos) {
+        if (!this._root?.isEnabled()) return null;
+        const dx = playerPos.x - this.x;
+        const dz = playerPos.z - this.z;
+        if (dx * dx + dz * dz > HP_SHOW_RANGE * HP_SHOW_RANGE) return null;
+        const ground = this.terrain.heightAt(this.x, this.z);
+        return {
+            id: "giant",
+            name: "Laestrygonian",
+            x: this.x,
+            y: ground + TARGET_HEIGHT * 0.95,
+            z: this.z,
+            kind: /** @type {"metal"} */ ("metal"),
+            ratio: 1,
+            flash: this._hpFlash,
+        };
     }
 
     /** Pin Hips XZ keys to first frame (safety for root-motion hit clips). */
@@ -530,7 +556,9 @@ export class Giant {
         if (!this._mesh || !this._root) return;
 
         this.didHit = false;
-        if (this._attackCd > 0) this._attackCd -= Math.max(dt, 0);
+        const h = Math.max(dt, 0);
+        if (this._hpFlash > 0) this._hpFlash = Math.max(0, this._hpFlash - HP_FLASH_DECAY * h);
+        if (this._attackCd > 0) this._attackCd -= h;
 
         const pdx = playerPos.x - this.x;
         const pdz = playerPos.z - this.z;

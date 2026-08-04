@@ -50,6 +50,8 @@ const BODY_PRESS = COLLIDE_RADIUS + CHAR_RADIUS + 0.25;
 
 const HEADS_TO_KILL = 5;
 const HEAD_WINDOW_MS = 15000;
+const HP_FLASH_DECAY = 6;
+const HP_SHOW_RANGE = 12;
 
 const FOOT_WIDTH = 0.18;
 const FOOT_ELONG = 1.6;
@@ -132,6 +134,8 @@ export class Cyclops {
 
         /** @type {number[]} headshot timestamps (ms) */
         this._headTimes = [];
+        /** 0..1 impact flash for health bar. */
+        this._hpFlash = 0;
 
         /** @type {(() => void)|null} */
         this.onDeath = null;
@@ -255,6 +259,7 @@ export class Cyclops {
         this._dying = false;
         this._corpse = false;
         this._headTimes.length = 0;
+        this._hpFlash = 0;
         this._enrageT = 0;
 
         const ang = Math.random() * Math.PI * 2;
@@ -329,16 +334,14 @@ export class Cyclops {
     playHit(zone) {
         if (!this.alive) return;
 
+        this._hpFlash = 1;
         unlockAudio();
         if (zone === "head") {
             playSfx(HEADSHOT_SFX, HEADSHOT_VOL);
             playSfx(PAIN_SFX, PAIN_VOL);
             const now = performance.now();
             this._headTimes.push(now);
-            const cutoff = now - HEAD_WINDOW_MS;
-            while (this._headTimes.length && this._headTimes[0] < cutoff) {
-                this._headTimes.shift();
-            }
+            this._pruneHeadTimes(now);
             if (this._headTimes.length >= HEADS_TO_KILL) {
                 this._die();
                 return;
@@ -371,6 +374,37 @@ export class Cyclops {
         });
         clip.start(false, 1.0);
         this._anim = clip;
+    }
+
+    /** @param {number} now */
+    _pruneHeadTimes(now) {
+        const cutoff = now - HEAD_WINDOW_MS;
+        while (this._headTimes.length && this._headTimes[0] < cutoff) {
+            this._headTimes.shift();
+        }
+    }
+
+    /**
+     * @param {Vector3} playerPos
+     */
+    getHealthView(playerPos) {
+        if (!this.alive || !this._spawned || !this._root?.isEnabled()) return null;
+        const dx = playerPos.x - this.x;
+        const dz = playerPos.z - this.z;
+        if (dx * dx + dz * dz > HP_SHOW_RANGE * HP_SHOW_RANGE) return null;
+        this._pruneHeadTimes(performance.now());
+        const ground = this.terrain.heightAt(this.x, this.z);
+        return {
+            id: "cyclops",
+            name: "Polyphemus",
+            x: this.x,
+            y: ground + TARGET_HEIGHT * 0.95,
+            z: this.z,
+            kind: /** @type {"pips"} */ ("pips"),
+            pips: Math.max(0, HEADS_TO_KILL - this._headTimes.length),
+            maxPips: HEADS_TO_KILL,
+            flash: this._hpFlash,
+        };
     }
 
     _die() {
@@ -636,6 +670,7 @@ export class Cyclops {
 
         this.didHit = false;
         const h = Math.max(dt, 0);
+        if (this._hpFlash > 0) this._hpFlash = Math.max(0, this._hpFlash - HP_FLASH_DECAY * h);
 
         if (this._enrageT > 0) {
             this._enrageT -= h;
