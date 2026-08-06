@@ -175,7 +175,7 @@ async function boot() {
     const healthBars = new HealthBars(scene);
     const subtitles = new Subtitles();
     const compass = new Compass();
-    setVoSubtitleHandler((text, dur) => subtitles.show(text, dur));
+    setVoSubtitleHandler((text, dur, opts) => subtitles.show(text, dur, opts));
 
     /** Nearest incomplete Odyssey objective for the compass needle. */
     const objectiveAt = () => {

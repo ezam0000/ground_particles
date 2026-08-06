@@ -83,12 +83,12 @@ export function sfxDuration(url) {
     return buf ? buf.duration : 0;
 }
 
-/** @type {((text: string, durationSec: number) => void)|null} */
+/** @type {((text: string, durationSec: number, opts?: { portrait?: string, featured?: boolean, accentWord?: string }) => void)|null} */
 let _onVoSubtitle = null;
 
 /**
  * Hook VO captions (set once from main / Subtitles).
- * @param {((text: string, durationSec: number) => void)|null} fn
+ * @param {((text: string, durationSec: number, opts?: { portrait?: string, featured?: boolean, accentWord?: string }) => void)|null} fn
  */
 export function setVoSubtitleHandler(fn) {
     _onVoSubtitle = fn;
@@ -99,11 +99,12 @@ export function setVoSubtitleHandler(fn) {
  * @param {string} url
  * @param {number} volume
  * @param {string} text
+ * @param {{ portrait?: string, featured?: boolean, accentWord?: string }} [opts]
  */
-export function playVo(url, volume, text) {
+export function playVo(url, volume, text, opts = {}) {
     playSfx(url, volume);
     if (!text || !_onVoSubtitle) return;
     const dur = sfxDuration(url);
     const fallback = Math.min(14, Math.max(2.5, text.length * 0.055));
-    _onVoSubtitle(text, dur > 0.2 ? dur : fallback);
+    _onVoSubtitle(text, dur > 0.2 ? dur : fallback, opts);
 }

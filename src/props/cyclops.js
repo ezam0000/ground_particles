@@ -25,6 +25,7 @@ const PAIN_SFX = "/assets/sfx/cyclops_pain.mp3";
 const DEATH_SFX = "/assets/sfx/cyclops_at_dead.mp3";
 const DEATH_LINE =
     "Πάτερ Ποσειδώνα, με τύφλωσαν. Εκδίκηση, πατέρα! Εκδίκηση για μένα. Ποσειδώνα! Εκδίκηση για μένα!";
+const DEATH_PORTRAIT = "/assets/odyssey/avatars/polyphemus.png";
 const HEADSHOT_SFX = "/assets/sfx/headshot.mp3";
 const PAIN_VOL = 0.72;
 const DEATH_VOL = 0.8;
@@ -420,7 +421,7 @@ export class Cyclops {
         this._enraged = false;
         this._attacking = false;
         unlockAudio();
-        playVo(DEATH_SFX, DEATH_VOL, DEATH_LINE);
+        playVo(DEATH_SFX, DEATH_VOL, DEATH_LINE, { portrait: DEATH_PORTRAIT });
 
         const clip = this._dieClip;
         if (this._anim) this._anim.stop();

@@ -17,9 +17,10 @@ alwaysApply: false
 ## Arrows ([`src/combat/arrows.js`](src/combat/arrows.js))
 
 - Pool of **10** `arrow.glb` — flight + stuck (FIFO recycle). Tip authored −Z → `_tipFix` yaw; plant mid-shaft with ~`PENETRATE`.
-- Plant path: cylinder/height snap → **mesh ray retract** (skinned + pillar solids) → **min-incidence bias** (`−dir·n ≥ MIN_INTO`) so shafts never lie flush/parallel → mid-shaft → bone / pillar parent / world.
-- Ground uses `terrain.normalAt`; characters/sheep use pick normal (radial fallback); pillars use solids pick or outward XZ.
-- Pillar detect `hitRadius`, coarse plant `surfaceRadius`; retract onto `solids` when present; `arrow_impact_pillar.mp3`.
+- Plant path: tip-seeded **mesh ray retract** (flight, then toward host mid, then upright radial seed) → **min-incidence bias** (`−dir·n ≥ MIN_INTO`) → mid-shaft → bone / pillar parent / world. Cylinder/height is **detect only**.
+- Mesh hosts (sheep / pillars / villains): plant **requires** a successful retract; on miss, clear the slot (no hovering upright snap) but still fire hit callbacks.
+- Ground uses `terrain.normalAt` (always plants).
+- Pillar detect `hitRadius`; retract onto `solids`; `arrow_impact_pillar.mp3`.
 - Sacred: Argos / Eumaeus clear the arrow and call `onSacredHit(who)` (no plant).
 - Hit order: ground → **argos/eumaeus** → **sheep** → giant → **cyclops** → antinous → pillar.
 

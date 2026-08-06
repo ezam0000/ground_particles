@@ -21,6 +21,7 @@ import { preloadSfx, playVo, unlockAudio } from "../combat/sfx.js";
 const MODEL = "/assets/odyssey/models/eumaeus.glb";
 const BOW_SFX = "/assets/sfx/eumaeus_bow.mp3";
 const BOW_LINE = "That's very clever, but your cleverness will get you in trouble";
+const BOW_PORTRAIT = "/assets/odyssey/avatars/eumaeus.png";
 const BOW_VOL = 0.78;
 
 const SPAWN = { x: -24, z: 14 };
@@ -221,7 +222,7 @@ export class Eumaeus {
 
     _beginGift() {
         unlockAudio();
-        playVo(BOW_SFX, BOW_VOL, BOW_LINE);
+        playVo(BOW_SFX, BOW_VOL, BOW_LINE, { portrait: BOW_PORTRAIT });
         this._giftedOnce = true;
         this._hint.hidden = true;
         if (this.onGift) this.onGift();

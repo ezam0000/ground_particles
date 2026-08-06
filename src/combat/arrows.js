@@ -30,9 +30,9 @@ const HIT_RADIUS = 0.9;
 const GIANT_BODY_R = 0.42;
 /** How deep the tip digs past the surface (m). */
 const PENETRATE = 0.16;
-/** Mesh retract ray: back along flight dir from cylinder candidate. */
-const RETRACT_BACK = 1.25;
-const RETRACT_LEN = 2.6;
+/** Mesh retract ray: back from tip along cast dir (longer for leaned hosts). */
+const RETRACT_BACK = 1.6;
+const RETRACT_LEN = 3.2;
 /**
  * Min −dir·n so shafts dig in (never lie parallel/flush).
  * 0.55 ≈ 33° from the surface plane.
@@ -85,6 +85,8 @@ const _ray = new Ray(Vector3.Zero(), Vector3.Forward(), 1);
 const _surf = new Vector3();
 const _n = new Vector3();
 const _tmpN = new Vector3();
+const _hostAim = new Vector3();
+const _castDir = new Vector3();
 
 export class ArrowPool {
     /**
@@ -513,7 +515,33 @@ export class ArrowPool {
     }
 
     /**
+     * Try mesh retract from a world seed along a unit cast dir. Writes `_surf` / `_n`.
+     * @param {import("@babylonjs/core/Meshes/mesh").Mesh|null} mesh
+     * @param {import("@babylonjs/core/Meshes/mesh").Mesh[]|null} meshes
+     * @param {number} sx
+     * @param {number} sy
+     * @param {number} sz
+     * @param {number} cdx
+     * @param {number} cdy
+     * @param {number} cdz
+     * @returns {boolean}
+     */
+    _tryRetract(mesh, meshes, sx, sy, sz, cdx, cdy, cdz) {
+        if (meshes?.length) {
+            if (this._pickBestSurface(meshes, sx, sy, sz, cdx, cdy, cdz)) return true;
+        }
+        if (mesh) {
+            if (this._pickSurface(mesh, sx, sy, sz, cdx, cdy, cdz)) {
+                _n.copyFrom(_tmpN);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Freeze arrow at impact with tip penetration + min incidence angle.
+     * Mesh hosts require a successful surface pick (no upright-snap ghosts on slopes).
      * @param {number} i
      * @param {number} x
      * @param {number} y
@@ -522,91 +550,38 @@ export class ArrowPool {
      * @param {number} dy
      * @param {number} dz
      * @param {"ground"|"giant"|"pillar"|"antinous"|"sheep"|"cyclops"} kind
-     * @param {{ x:number, z:number, radius:number, root: import("@babylonjs/core/Meshes/transformNode").TransformNode, solids?: import("@babylonjs/core/Meshes/mesh").Mesh[] }|null} [pillar]
+     * @param {{ x:number, z:number, groundY?:number, height?:number, radius:number, root: import("@babylonjs/core/Meshes/transformNode").TransformNode, solids?: import("@babylonjs/core/Meshes/mesh").Mesh[] }|null} [pillar]
      * @param {{ x:number, z:number, bodyRadius?:number, root?: import("@babylonjs/core/Meshes/transformNode").TransformNode, _mesh?: import("@babylonjs/core/Meshes/mesh").Mesh, mesh?: import("@babylonjs/core/Meshes/mesh").Mesh, _root?: import("@babylonjs/core/Meshes/transformNode").TransformNode }|null} [hostExtra]
+     * @returns {boolean} false if mesh retract failed (caller should clearSlot)
      */
     _plant(i, x, y, z, dx, dy, dz, kind, pillar = null, hostExtra = null) {
         _dir.set(dx, dy, dz);
         if (_dir.lengthSquared() < 1e-8) _dir.set(0, -1, 0);
         _dir.normalize();
 
-        let sx = x;
-        let sy = y;
-        let sz = z;
-        let hx = x;
-        let hz = z;
-
-        if (kind === "giant" && this.giant) {
-            const g = this.giant;
-            hx = g.x;
-            hz = g.z;
-            const ox = x - g.x;
-            const oz = z - g.z;
-            const horiz = Math.hypot(ox, oz) || 1;
-            sx = g.x + (ox / horiz) * GIANT_BODY_R;
-            sz = g.z + (oz / horiz) * GIANT_BODY_R;
-            sy = y;
-        } else if (kind === "cyclops" && this.cyclops) {
-            const c = this.cyclops;
-            hx = c.x;
-            hz = c.z;
-            const bodyR = c.bodyRadius || 0.48;
-            const ox = x - c.x;
-            const oz = z - c.z;
-            const horiz = Math.hypot(ox, oz) || 1;
-            sx = c.x + (ox / horiz) * bodyR;
-            sz = c.z + (oz / horiz) * bodyR;
-            sy = y;
-        } else if (kind === "antinous" && this.antinous) {
-            const a = this.antinous;
-            hx = a.x;
-            hz = a.z;
-            const bodyR = a.bodyRadius || 0.32;
-            const ox = x - a.x;
-            const oz = z - a.z;
-            const horiz = Math.hypot(ox, oz) || 1;
-            sx = a.x + (ox / horiz) * bodyR;
-            sz = a.z + (oz / horiz) * bodyR;
-            sy = y;
-        } else if (kind === "sheep" && hostExtra) {
-            hx = hostExtra.x;
-            hz = hostExtra.z;
-            const bodyR = hostExtra.bodyRadius || 0.28;
-            const ox = x - hostExtra.x;
-            const oz = z - hostExtra.z;
-            const horiz = Math.hypot(ox, oz) || 1;
-            sx = hostExtra.x + (ox / horiz) * bodyR;
-            sz = hostExtra.z + (oz / horiz) * bodyR;
-            sy = y;
-        } else if (kind === "pillar" && pillar) {
-            hx = pillar.x;
-            hz = pillar.z;
-            const ox = x - pillar.x;
-            const oz = z - pillar.z;
-            const horiz = Math.hypot(ox, oz) || 1;
-            const surfaceR = Math.max(
-                0.2,
-                (pillar.surfaceRadius ?? pillar.hitRadius ?? pillar.radius) - 0.08
-            );
-            sx = pillar.x + (ox / horiz) * surfaceR;
-            sz = pillar.z + (oz / horiz) * surfaceR;
-            sy = y;
-        }
-
-        // Fallback outward normal (radial XZ, or terrain up for ground).
         if (kind === "ground") {
-            this.terrain.normalAt(sx, sz, _n);
-        } else {
-            const ox = sx - hx;
-            const oz = sz - hz;
-            const horiz = Math.hypot(ox, oz);
-            if (horiz > 1e-4) _n.set(ox / horiz, 0, oz / horiz);
-            else _n.set(-_dir.x, 0, -_dir.z);
-            if (_n.lengthSquared() < 1e-8) _n.set(0, 1, 0);
-            else _n.normalize();
+            _surf.set(x, y, z);
+            this.terrain.normalAt(x, z, _n);
+            this._biasIntoSurface();
+            _pos.set(
+                _surf.x + _dir.x * PENETRATE - _dir.x * (ARROW_LEN * 0.5),
+                _surf.y + _dir.y * PENETRATE - _dir.y * (ARROW_LEN * 0.5),
+                _surf.z + _dir.z * PENETRATE - _dir.z * (ARROW_LEN * 0.5)
+            );
+            _up.set(0, 1, 0);
+            Quaternion.FromLookDirectionLHToRef(_dir, _up, _orient);
+            _orient.multiplyInPlace(_tipFix);
+            const root = this._roots[i];
+            if (root.detachFromBone) root.detachFromBone();
+            root.setParent(null);
+            root.scaling.setAll(this._arrowScale);
+            root.rotationQuaternion.copyFrom(_orient);
+            root.position.copyFrom(_pos);
+            this._state[i] = STUCK;
+            this._life[i] = 0;
+            this._setVisible(i, true);
+            return true;
         }
-
-        _surf.set(sx, sy, sz);
 
         const host =
             kind === "giant" ? this.giant
@@ -615,14 +590,65 @@ export class ArrowPool {
             : kind === "sheep" ? hostExtra
             : null;
         const hostMesh = host?._mesh || host?.mesh || null;
+        const solids = kind === "pillar" ? (pillar?.solids || null) : null;
 
-        if (kind === "pillar" && pillar?.solids?.length) {
-            this._pickBestSurface(pillar.solids, sx, sy, sz, _dir.x, _dir.y, _dir.z);
-        } else if (hostMesh) {
-            if (this._pickSurface(hostMesh, sx, sy, sz, _dir.x, _dir.y, _dir.z)) {
-                _n.copyFrom(_tmpN);
+        // Host aim point (mesh mid) for a toward-root cast when flight retract misses.
+        let ax = x;
+        let ay = y;
+        let az = z;
+        let bodyR = 0.35;
+        if (kind === "pillar" && pillar) {
+            ax = pillar.x;
+            az = pillar.z;
+            const gy = pillar.groundY != null ? pillar.groundY : this.terrain.heightAt(pillar.x, pillar.z);
+            ay = gy + (pillar.height || 2.2) * 0.45;
+            bodyR = pillar.surfaceRadius ?? pillar.hitRadius ?? pillar.radius ?? 0.35;
+        } else if (host) {
+            ax = host.x;
+            az = host.z;
+            const gy = this.terrain.heightAt(ax, az);
+            if (kind === "sheep") {
+                ay = gy + 0.55;
+                bodyR = host.bodyRadius || 0.28;
+            } else if (kind === "antinous") {
+                ay = gy + 1.0;
+                bodyR = host.bodyRadius || 0.32;
+            } else if (kind === "cyclops") {
+                ay = gy + 1.6;
+                bodyR = host.bodyRadius || 0.48;
+            } else {
+                ay = gy + 1.5;
+                bodyR = GIANT_BODY_R;
             }
         }
+
+        // Primary: tip along flight. Secondary: tip toward host mid.
+        let found = this._tryRetract(
+            hostMesh, solids, x, y, z, _dir.x, _dir.y, _dir.z
+        );
+        if (!found) {
+            _hostAim.set(ax - x, ay - y, az - z);
+            const aimLen = _hostAim.length();
+            if (aimLen > 1e-4) {
+                _castDir.copyFrom(_hostAim).scaleInPlace(1 / aimLen);
+                found = this._tryRetract(
+                    hostMesh, solids, x, y, z, _castDir.x, _castDir.y, _castDir.z
+                );
+            }
+        }
+        // Tertiary: upright radial seed along flight (flat ground / pickable edge).
+        if (!found) {
+            const ox = x - ax;
+            const oz = z - az;
+            const horiz = Math.hypot(ox, oz) || 1;
+            const sx = ax + (ox / horiz) * bodyR;
+            const sz = az + (oz / horiz) * bodyR;
+            found = this._tryRetract(
+                hostMesh, solids, sx, y, sz, _dir.x, _dir.y, _dir.z
+            );
+        }
+
+        if (!found) return false;
 
         this._biasIntoSurface();
 
@@ -671,6 +697,7 @@ export class ArrowPool {
         this._state[i] = STUCK;
         this._life[i] = 0;
         this._setVisible(i, true);
+        return true;
     }
 
     _playImpact() {
@@ -877,13 +904,15 @@ export class ArrowPool {
             if (sheepHit) {
                 const hx = this._px[i], hy = this._py[i], hz = this._pz[i];
                 const spd = Math.hypot(this._vx[i], this._vy[i], this._vz[i]) || 1;
-                this._plant(
+                if (!this._plant(
                     i, hx, hy, hz,
                     this._vx[i] / spd, this._vy[i] / spd, this._vz[i] / spd,
                     "sheep",
                     null,
                     sheepHit
-                );
+                )) {
+                    this._clearSlot(i);
+                }
                 if (this.onSheepHit) this.onSheepHit(sheepHit);
                 continue;
             }
@@ -896,11 +925,13 @@ export class ArrowPool {
                 if (zone) {
                     const hx = this._px[i], hy = this._py[i], hz = this._pz[i];
                     const spd = Math.hypot(this._vx[i], this._vy[i], this._vz[i]) || 1;
-                    this._plant(
+                    if (!this._plant(
                         i, hx, hy, hz,
                         this._vx[i] / spd, this._vy[i] / spd, this._vz[i] / spd,
                         "giant"
-                    );
+                    )) {
+                        this._clearSlot(i);
+                    }
                     if (zone === "head") this._playHeadshot();
                     else this._playImpact();
                     if (this.onGiantHit) this.onGiantHit(zone, hx, hy, hz);
@@ -916,11 +947,13 @@ export class ArrowPool {
                 if (zone) {
                     const hx = this._px[i], hy = this._py[i], hz = this._pz[i];
                     const spd = Math.hypot(this._vx[i], this._vy[i], this._vz[i]) || 1;
-                    this._plant(
+                    if (!this._plant(
                         i, hx, hy, hz,
                         this._vx[i] / spd, this._vy[i] / spd, this._vz[i] / spd,
                         "cyclops"
-                    );
+                    )) {
+                        this._clearSlot(i);
+                    }
                     if (this.onCyclopsHit) this.onCyclopsHit(zone, hx, hy, hz);
                     continue;
                 }
@@ -934,11 +967,13 @@ export class ArrowPool {
                 if (zone) {
                     const hx = this._px[i], hy = this._py[i], hz = this._pz[i];
                     const spd = Math.hypot(this._vx[i], this._vy[i], this._vz[i]) || 1;
-                    this._plant(
+                    if (!this._plant(
                         i, hx, hy, hz,
                         this._vx[i] / spd, this._vy[i] / spd, this._vz[i] / spd,
                         "antinous"
-                    );
+                    )) {
+                        this._clearSlot(i);
+                    }
                     if (this.onAntinousHit) this.onAntinousHit(zone, hx, hy, hz);
                     continue;
                 }
@@ -948,12 +983,14 @@ export class ArrowPool {
             if (pillar) {
                 const hx = this._px[i], hy = this._py[i], hz = this._pz[i];
                 const spd = Math.hypot(this._vx[i], this._vy[i], this._vz[i]) || 1;
-                this._plant(
+                if (!this._plant(
                     i, hx, hy, hz,
                     this._vx[i] / spd, this._vy[i] / spd, this._vz[i] / spd,
                     "pillar",
                     pillar
-                );
+                )) {
+                    this._clearSlot(i);
+                }
                 this._playPillarImpact();
                 continue;
             }
