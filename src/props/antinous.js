@@ -22,15 +22,15 @@ import { preloadSfx, playSfx, playVo, unlockAudio } from "../combat/sfx.js";
 import { input } from "../core/input.js";
 
 const MODEL = "/assets/odyssey/models/antinous.glb";
+const SUMMON_SFX = "/assets/sfx/antinous_summon.mp3";
 const IMPACT_SFX = "/assets/sfx/antinous_impact.mp3";
 const DEATH_SFX = "/assets/sfx/antinous_death.mp3";
-const WILL_NOT_SFX = "/assets/sfx/antinous_will_not.mp3";
-const WILL_NOT_LINE = "Somebody get this beggars out of here";
-const WILL_NOT_PORTRAIT = "/assets/odyssey/avatars/antinous.png";
+const SPAWN_LINE = "Somebody get this beggars out of here";
+const SPAWN_PORTRAIT = "/assets/odyssey/avatars/antinous.png";
 const HEADSHOT_SFX = "/assets/sfx/headshot.mp3";
+const SUMMON_VOL = 0.7;
 const IMPACT_VOL = 0.55;
 const DEATH_VOL = 0.75;
-const WILL_NOT_VOL = 0.75;
 const HEADSHOT_VOL = 0.7;
 
 const TARGET_HEIGHT = 1.85;
@@ -160,9 +160,9 @@ export class Antinous {
         this._prepassMat = this._makePrepassMaterial();
 
         this._ready = this._load();
+        void preloadSfx(SUMMON_SFX);
         void preloadSfx(IMPACT_SFX);
         void preloadSfx(DEATH_SFX);
-        void preloadSfx(WILL_NOT_SFX);
         void preloadSfx(HEADSHOT_SFX);
     }
 
@@ -311,8 +311,8 @@ export class Antinous {
         this._setEnabled(true);
 
         unlockAudio();
-        playVo(WILL_NOT_SFX, WILL_NOT_VOL, WILL_NOT_LINE, {
-            portrait: WILL_NOT_PORTRAIT,
+        playVo(SUMMON_SFX, SUMMON_VOL, SPAWN_LINE, {
+            portrait: SPAWN_PORTRAIT,
             featured: true,
             accentWord: "beggars",
         });
@@ -467,8 +467,8 @@ export class Antinous {
         this._placeRoot(this._root, 1);
 
         unlockAudio();
-        playVo(WILL_NOT_SFX, WILL_NOT_VOL, WILL_NOT_LINE, {
-            portrait: WILL_NOT_PORTRAIT,
+        playVo(SUMMON_SFX, SUMMON_VOL, SPAWN_LINE, {
+            portrait: SPAWN_PORTRAIT,
             featured: true,
             accentWord: "beggars",
         });
@@ -655,9 +655,9 @@ export class Antinous {
 
     async warmUp() {
         await this._ready;
+        await preloadSfx(SUMMON_SFX);
         await preloadSfx(IMPACT_SFX);
         await preloadSfx(DEATH_SFX);
-        await preloadSfx(WILL_NOT_SFX);
         await preloadSfx(HEADSHOT_SFX);
         for (const { mat, mesh } of this._mats) {
             await whenReady(mat, mat.name, [mesh, false]);

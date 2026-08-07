@@ -30,7 +30,7 @@ alwaysApply: false
 ## Antinous ([`src/props/antinous.js`](src/props/antinous.js))
 
 - Spawns after **5** sun-aimed shots. Patrol-only; dies at **20** damage (body **+1**, head **+3**). Corpse + **I** revive. Crush before commit.
-- Spawn → `antinous_will_not.mp3` + featured subtitle (“Somebody get this beggars out of here”). Proximity terracotta HP bar drains with damage; flashes on hit.
+- Spawn → `antinous_summon.mp3` + featured subtitle (“Somebody get this beggars out of here”). No 5-hit VO. Proximity terracotta HP bar drains with damage; flashes on hit.
 
 ## Sheep ([`src/props/sheep.js`](src/props/sheep.js))
 
