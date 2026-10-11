@@ -36,7 +36,7 @@ const LIMP_ANIM = 1.0;
 const PATROL_R = 4.5;
 
 const _splits = new Vector4();
-const _fill = new Color3(0.5, 0.42, 0.35);
+const _fill = new Color3(0.65, 0.54, 0.43);
 const _min = new Vector3();
 const _max = new Vector3();
 const _normal = new Vector3();
@@ -354,6 +354,11 @@ export class Eumaeus {
         }
         this._placeRoot(h);
 
+        this.refreshLighting(cameraPos, env);
+    }
+
+    /** Refresh view/light uniforms without advancing animation, AI, or projectiles. */
+    refreshLighting(cameraPos, env) {
         const sky = this.sky;
         _splits.set(
             this.shadows.splits[0], this.shadows.splits[1],

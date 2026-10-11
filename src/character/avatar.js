@@ -41,7 +41,7 @@ const RELEASE_T = 0.28;
 const _aimDir = new Vector3();
 
 const _splits = new Vector4();
-const _fill = new Color3(0.55, 0.48, 0.38);
+const _fill = new Color3(0.85, 0.72, 0.56);
 const _min = new Vector3();
 const _max = new Vector3();
 const _normal = new Vector3();
@@ -257,6 +257,13 @@ export class PlayerAvatar {
             this.terrain.normalAt(x, z, _normal);
             _normal.x *= 0.55;
             _normal.z *= 0.55;
+            // Cap visual torso tilt on steep dunes; keep the authored foot clearance.
+            const horizontal = Math.hypot(_normal.x, _normal.z);
+            const limit = Math.max(0.001, _normal.y) * Math.tan(18 * Math.PI / 180);
+            if (horizontal > limit) {
+                _normal.x *= limit / horizontal;
+                _normal.z *= limit / horizontal;
+            }
             const nLen = Math.hypot(_normal.x, _normal.y, _normal.z) || 1;
             _normal.x /= nLen;
             _normal.y /= nLen;
@@ -791,6 +798,11 @@ export class PlayerAvatar {
             this.bow.setVisible(this.hasBow && this._busy === "draw");
         }
 
+        this.refreshLighting(cameraPos, env);
+    }
+
+    /** Refresh view/light uniforms without advancing animation, AI, or projectiles. */
+    refreshLighting(cameraPos, env) {
         const sky = this.sky;
         _splits.set(
             this.shadows.splits[0], this.shadows.splits[1],

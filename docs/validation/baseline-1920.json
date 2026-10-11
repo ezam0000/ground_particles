@@ -1,0 +1,32 @@
+{
+  "width": 1920,
+  "height": 1080,
+  "startup": {
+    "readyMs": 1546.4000000059605,
+    "requests": 242,
+    "transferBytes": 34917485,
+    "decodedBytes": 36529025,
+    "loading": null
+  },
+  "scenes": {
+    "spawn": {
+      "medianMs": 16.600000008940697,
+      "p95Ms": 17.5,
+      "frames": 239
+    },
+    "pillars": {
+      "medianMs": 16.599999994039536,
+      "p95Ms": 17.700000002980232,
+      "frames": 239
+    },
+    "combat": {
+      "medianMs": 16.600000008940697,
+      "p95Ms": 17.599999994039536,
+      "frames": 239
+    }
+  },
+  "warnings": [
+    "BJS - [15:45:54]: [Frame 1] WebGPU uncaptured error (1): [object GPUValidationError] - Destroyed texture [Texture \"IOSurface(Gles2Read|RasterRead|DisplayRead|Scanout|WebgpuRead|WebgpuSwapChainTexture|WebgpuWrite)\"] used in a submit.\n - While calling [Queue].Submit([[CommandBuffer from CommandEncoder \"[0|16] - UploadEncoder\"], [CommandBuffer from CommandEncoder \"[0|16] - RenderEncoder\"]])\n"
+  ],
+  "errors": []
+}

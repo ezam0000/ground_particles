@@ -1,0 +1,67 @@
+{
+  "width": 1920,
+  "height": 1080,
+  "startup": {
+    "readyMs": 1331.4000000059605,
+    "requests": 247,
+    "transferBytes": 32860634,
+    "decodedBytes": 34470674,
+    "loading": [
+      {
+        "phase": "initializing",
+        "durationMs": 0.7000000029802322
+      },
+      {
+        "phase": "waking the dunes",
+        "durationMs": 29.799999997019768
+      },
+      {
+        "phase": "shaping the sand",
+        "durationMs": 26.200000002980232
+      },
+      {
+        "phase": "gathering light",
+        "durationMs": 58.20000000298023
+      },
+      {
+        "phase": "packing the dunes",
+        "durationMs": 150.3999999910593
+      },
+      {
+        "phase": "calling the walker",
+        "durationMs": 3.2000000029802322
+      },
+      {
+        "phase": "raising the pillars",
+        "durationMs": 25.099999994039536
+      },
+      {
+        "phase": "tempering the bow",
+        "durationMs": 130.90000000596046
+      },
+      {
+        "phase": "heat shimmer",
+        "durationMs": 113
+      }
+    ]
+  },
+  "scenes": {
+    "spawn": {
+      "medianMs": 16.700000002980232,
+      "p95Ms": 17.600000008940697,
+      "frames": 239
+    },
+    "pillars": {
+      "medianMs": 16.600000008940697,
+      "p95Ms": 17.80000001192093,
+      "frames": 239
+    },
+    "combat": {
+      "medianMs": 16.700000002980232,
+      "p95Ms": 17.599999994039536,
+      "frames": 239
+    }
+  },
+  "warnings": [],
+  "errors": []
+}

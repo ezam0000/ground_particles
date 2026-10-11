@@ -45,7 +45,7 @@ const PASTURE = { x: 28, z: -12 };
 const PASTURE_R = 5.5;
 
 const _splits = new Vector4();
-const _fill = new Color3(0.55, 0.48, 0.38);
+const _fill = new Color3(0.68, 0.56, 0.44);
 const _min = new Vector3();
 const _max = new Vector3();
 const _normal = new Vector3();
@@ -107,6 +107,10 @@ export class SheepFlock {
 
     get allDead() {
         return this.sheep.length > 0 && this.sheep.every((s) => !s.alive && !s.sinking);
+    }
+
+    get canCollectCard() {
+        return !this._killedAny && !this.allDead;
     }
 
     async _loadAll() {
@@ -448,6 +452,11 @@ export class SheepFlock {
             this._placeRoot(s, h);
         }
 
+        this.refreshLighting(cameraPos, env);
+    }
+
+    /** Refresh view/light uniforms without advancing animation, AI, or projectiles. */
+    refreshLighting(cameraPos, env) {
         const sky = this.sky;
         _splits.set(
             this.shadows.splits[0], this.shadows.splits[1],

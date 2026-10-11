@@ -62,7 +62,7 @@ const STANCE = 0.16;
 const SUN_DOT = Math.cos((12 * Math.PI) / 180);
 
 const _splits = new Vector4();
-const _fill = new Color3(0.5, 0.42, 0.35);
+const _fill = new Color3(0.65, 0.54, 0.43);
 const _min = new Vector3();
 const _max = new Vector3();
 const _normal = new Vector3();
@@ -134,6 +134,7 @@ export class Antinous {
         this._sunShots = 0;
         /** 0..1 impact flash for health bar. */
         this._hpFlash = 0;
+        this._healthView = { id: "antinous", name: "Antinoös", kind: "hp", x: 0, y: 0, z: 0, ratio: 1, pips: 5, maxPips: 5, flash: 0 };
         /** Accumulated damage toward HITS_TO_KILL (head = HEAD_DAMAGE). */
         this._damage = 0;
 
@@ -180,16 +181,16 @@ export class Antinous {
         const dz = playerPos.z - this.z;
         if (dx * dx + dz * dz > HP_SHOW_RANGE * HP_SHOW_RANGE) return null;
         const ground = this.terrain.heightAt(this.x, this.z);
-        return {
-            id: "antinous",
-            name: "Antinoös",
-            x: this.x,
-            y: ground + TARGET_HEIGHT * 0.95,
-            z: this.z,
-            kind: /** @type {"hp"} */ ("hp"),
-            ratio: 1 - Math.min(1, this._damage / HITS_TO_KILL),
-            flash: this._hpFlash,
-        };
+        const view = this._healthView;
+        view.id = "antinous";
+        view.name = "Antinoös";
+        view.x = this.x;
+        view.y = ground + TARGET_HEIGHT * 0.95;
+        view.z = this.z;
+        view.kind = /** @type {"hp"} */ ("hp");
+        view.ratio = 1 - Math.min(1, this._damage / HITS_TO_KILL);
+        view.flash = this._hpFlash;
+        return view;
     }
 
     /** True while a dead body is left on the sand. */
@@ -723,6 +724,11 @@ export class Antinous {
             this._placeRoot(this._root, h);
         }
 
+        this.refreshLighting(cameraPos, env);
+    }
+
+    /** Refresh view/light uniforms without advancing animation, AI, or projectiles. */
+    refreshLighting(cameraPos, env) {
         const sky = this.sky;
         _splits.set(
             this.shadows.splits[0], this.shadows.splits[1],

@@ -6,7 +6,14 @@
  * approach and their links fire on a keypress, never on a click.
  */
 
+import { preferences } from "./preferences.js";
+
 export const input = {
+    enabled: true,
+    escapePressed: false,
+    helpPressed: false,
+    destinationsPressed: false,
+    preferencesPressed: false,
     // Movement axes, camera-relative, already normalised to a unit disc.
     moveX: 0,
     moveZ: 0,
@@ -51,7 +58,7 @@ const LOOK_SCALE = 0.0022;
 /** @param {HTMLCanvasElement} canvas */
 export function initInput(canvas) {
     canvas.addEventListener("click", () => {
-        if (!input.locked) canvas.requestPointerLock();
+        if (!input.locked) void canvas.requestPointerLock()?.catch(() => {});
     });
 
     document.addEventListener("pointerlockchange", () => {
@@ -64,8 +71,8 @@ export function initInput(canvas) {
 
     document.addEventListener("mousemove", (e) => {
         if (!input.locked) return;
-        input.lookX += e.movementX * LOOK_SCALE;
-        input.lookY += e.movementY * LOOK_SCALE;
+        input.lookX += e.movementX * LOOK_SCALE * preferences.sensitivity;
+        input.lookY += e.movementY * LOOK_SCALE * preferences.sensitivity;
     });
 
     canvas.addEventListener("contextmenu", (e) => e.preventDefault());
@@ -81,6 +88,10 @@ export function initInput(canvas) {
     );
 
     window.addEventListener("keydown", (e) => {
+        if (e.code === "Escape" && !e.repeat) input.escapePressed = true;
+        if ((e.code === "Space" || e.code === "Enter") && e.target instanceof Element && e.target.closest("button, summary, a")) return;
+        // Form controls keep their own keyboard behavior; Escape still closes.
+        if (e.target instanceof Element && e.target.closest("input, select, textarea, [contenteditable]")) return;
         if (e.code === "Space") {
             // Space scrolls the page by default; never let it.
             e.preventDefault();
@@ -92,11 +103,11 @@ export function initInput(canvas) {
         if (e.code === "KeyR" && !e.repeat) input.drawPressed = true;
         if (e.code === "KeyB" && !e.repeat) input.bookPressed = true;
         if (e.code === "KeyF" && !e.repeat) input.flipPressed = true;
+        if (e.code === "KeyH" && !e.repeat) input.helpPressed = true;
+        if (e.code === "KeyG" && !e.repeat) input.destinationsPressed = true;
+        if (e.code === "KeyP" && !e.repeat) input.preferencesPressed = true;
         if (e.code === "ArrowLeft" && !e.repeat) input.navLeftPressed = true;
         if (e.code === "ArrowRight" && !e.repeat) input.navRightPressed = true;
-        if (e.code === "Escape" && !e.repeat && input.inspecting) {
-            input.inspectPressed = true; // same toggle path exits inspect
-        }
         if (e.repeat) return;
         keys[e.code] = true;
     });
@@ -112,6 +123,11 @@ export function initInput(canvas) {
 
 /** Resolve held keys into movement axes. Called once per frame before update. */
 export function pollInput() {
+    if (!input.enabled) {
+        input.moveX = input.moveZ = 0;
+        input.moving = input.sprint = false;
+        return;
+    }
     let x = 0;
     let z = 0;
     if (keys.KeyW || keys.ArrowUp) z += 1;
@@ -133,6 +149,10 @@ export function pollInput() {
 
 /** Clear per-frame accumulators. Called at the very end of the frame. */
 export function endFrame() {
+    input.escapePressed = false;
+    input.helpPressed = false;
+    input.destinationsPressed = false;
+    input.preferencesPressed = false;
     input.lookX = 0;
     input.lookY = 0;
     input.zoomDelta = 0;
@@ -145,4 +165,12 @@ export function endFrame() {
     input.flipPressed = false;
     input.navLeftPressed = false;
     input.navRightPressed = false;
+}
+
+/** Discard held and queued actions on every interaction/focus transition. */
+export function clearInput() {
+    for (const key in keys) keys[key] = false;
+    input.moveX = input.moveZ = 0;
+    input.moving = input.sprint = false;
+    endFrame();
 }

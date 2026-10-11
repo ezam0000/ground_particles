@@ -112,8 +112,8 @@ export class ProjectCard {
             '<div class="p-title"><span class="t"></span><span class="p-new">new</span></div>' +
             '<div class="p-period"></div>' +
             '<div class="p-desc"></div>' +
-            '<div class="p-link"><b>E</b> open site</div>' +
-            '<div class="p-inspect"><b>I</b> inspect</div>';
+            '<div class="p-link"><a target="_blank" rel="noopener"><b>E</b> open site</a></div>' +
+            '<div class="p-inspect"></div>';
         document.body.appendChild(this.el);
 
         this._kind = this.el.querySelector(".p-kind");
@@ -123,6 +123,11 @@ export class ProjectCard {
         this._desc = this.el.querySelector(".p-desc");
         this._link = this.el.querySelector(".p-link");
         this._inspect = this.el.querySelector(".p-inspect");
+        this._anchor = this.el.querySelector(".p-link a");
+        this.onInspect = null;
+        this._inspect.addEventListener("click", (event) => {
+            if (event.target.closest("button")) this.onInspect?.();
+        });
 
         /** @type {object|null} */
         this.active = null;
@@ -153,6 +158,8 @@ export class ProjectCard {
             this._period.style.display = "none";
         }
         this._link.style.display = p.link ? "" : "none";
+        if (p.link) this._anchor.href = p.link;
+        else this._anchor.removeAttribute("href");
         this.el.classList.add("show");
         this.setInspecting(this._inspecting);
     }
@@ -162,8 +169,8 @@ export class ProjectCard {
         this._inspecting = !!on;
         if (!this._inspect) return;
         this._inspect.innerHTML = on
-            ? "<b>I</b> exit · mouse orbit · scroll zoom"
-            : "<b>I</b> inspect";
+            ? '<button><kbd>I</kbd> Exit inspection</button><span>Mouse orbit · scroll zoom</span>'
+            : '<button><kbd>I</kbd> Inspect</button>';
     }
 
     hide() {

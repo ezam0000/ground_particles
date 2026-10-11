@@ -178,7 +178,7 @@ export class HealthBars {
 
         const slot = this._pool[this._slot++];
         slot.used = true;
-        slot.name.textContent = t.name;
+        if (slot.name.textContent !== t.name) slot.name.textContent = t.name;
 
         const flashOn = (t.flash || 0) > 0.12;
         slot.el.classList.toggle("flash", flashOn);

@@ -78,7 +78,7 @@ const PATROL = [
 ];
 
 const _splits = new Vector4();
-const _fill = new Color3(0.55, 0.48, 0.38);
+const _fill = new Color3(0.68, 0.56, 0.44);
 const _min = new Vector3();
 const _max = new Vector3();
 const _normal = new Vector3();
@@ -152,6 +152,7 @@ export class Giant {
         this._arrowHits = 0;
         /** 0..1 impact flash for the metal health bar. */
         this._hpFlash = 0;
+        this._healthView = { id: "giant", name: "Laestrygonian", kind: "metal", x: 0, y: 0, z: 0, ratio: 1, pips: 5, maxPips: 5, flash: 0 };
         this._ready = this._load();
         void preloadSfx(HIT_SFX);
         void preloadSfx(ROAR_SFX);
@@ -293,16 +294,16 @@ export class Giant {
         const dz = playerPos.z - this.z;
         if (dx * dx + dz * dz > HP_SHOW_RANGE * HP_SHOW_RANGE) return null;
         const ground = this.terrain.heightAt(this.x, this.z);
-        return {
-            id: "giant",
-            name: "Laestrygonian",
-            x: this.x,
-            y: ground + TARGET_HEIGHT * 0.95,
-            z: this.z,
-            kind: /** @type {"metal"} */ ("metal"),
-            ratio: 1,
-            flash: this._hpFlash,
-        };
+        const view = this._healthView;
+        view.id = "giant";
+        view.name = "Laestrygonian";
+        view.x = this.x;
+        view.y = ground + TARGET_HEIGHT * 0.95;
+        view.z = this.z;
+        view.kind = /** @type {"metal"} */ ("metal");
+        view.ratio = 1;
+        view.flash = this._hpFlash;
+        return view;
     }
 
     /** Pin Hips XZ keys to first frame (safety for root-motion hit clips). */
@@ -621,6 +622,11 @@ export class Giant {
 
         if (!this._attacking && !this._reacting) this._stampFeet();
 
+        this.refreshLighting(cameraPos, env);
+    }
+
+    /** Refresh view/light uniforms without advancing animation, AI, or projectiles. */
+    refreshLighting(cameraPos, env) {
         const sky = this.sky;
         _splits.set(
             this.shadows.splits[0], this.shadows.splits[1],

@@ -4,6 +4,7 @@
  */
 
 import { preloadSfx, playSfx, unlockAudio } from "../combat/sfx.js";
+import { trapDialogFocus } from "./dialog.js";
 
 const ART = "/assets/odyssey/zeus_death.png";
 const SFX = "/assets/sfx/zeus_death.mp3";
@@ -59,10 +60,17 @@ export class ZeusDeath {
 
         this.el = document.createElement("div");
         this.el.id = "zeus-death";
+        this.el.setAttribute("role", "dialog");
+        this.el.setAttribute("aria-modal", "true");
+        this.el.setAttribute("aria-label", "Zeus is upset");
+        this.el.setAttribute("aria-hidden", "true");
         this.el.innerHTML =
             '<img alt="Zeus is upset" decoding="async" />' +
-            '<div class="zd-hint"><b>E</b> continue</div>';
+            '<div class="zd-hint"><button>Continue <kbd>E / Esc</kbd></button></div>';
+        this.onContinue = null;
+        this.el.querySelector("button").addEventListener("click", () => this.onContinue?.());
         document.body.appendChild(this.el);
+        trapDialogFocus(this.el);
         /** @type {HTMLImageElement} */
         this._img = this.el.querySelector("img");
         this._img.src = ART;
@@ -77,12 +85,15 @@ export class ZeusDeath {
         unlockAudio();
         playSfx(SFX, SFX_VOL);
         this.el.classList.add("show");
+        this.el.setAttribute("aria-hidden", "false");
+        this.el.querySelector("button").focus();
     }
 
     hide() {
         if (!this.visible) return;
         this.visible = false;
         this.el.classList.remove("show");
+        this.el.setAttribute("aria-hidden", "true");
     }
 
     async warmUp() {

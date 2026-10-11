@@ -72,7 +72,7 @@ const _splits = new Vector4();
 const _min = new Vector3();
 const _max = new Vector3();
 const _fill = new Color3(0.55, 0.48, 0.38);
-const _near = [];
+const DEFAULT_LIGHT = [1, 0.85, 0.55];
 /** Prop-only key lights (6 slots × vec4). Pre-sized — no alloc in update. */
 const KEY_LIGHT_MAX = 6;
 const _keyPos = new Float32Array(KEY_LIGHT_MAX * 4);
@@ -120,6 +120,11 @@ export class Pedestals {
         this._inspectPoint = null;
 
         this._ready = this._loadAll();
+        this._nearest = [null, null, null];
+        this._nearestD2 = new Float64Array(3);
+        this._cardPoint = null;
+        this._cardCandidate = null;
+        this._candidateTime = 0;
     }
 
     /**
@@ -141,7 +146,13 @@ export class Pedestals {
 
         let best = null;
         let bestD2 = INSPECT_RANGE * INSPECT_RANGE;
+        // Inspect the card the visitor is already reading, including hysteresis.
+        if (this._cardPoint) {
+            const dx = playerPos.x - this._cardPoint.x, dz = playerPos.z - this._cardPoint.z;
+            if (dx * dx + dz * dz < bestD2) best = this._cardPoint;
+        }
         for (let i = 0; i < this._points.length; i++) {
+            if (best === this._cardPoint && best) break;
             const pt = this._points[i];
             const d2 = (playerPos.x - pt.x) ** 2 + (playerPos.z - pt.z) ** 2;
             if (d2 < bestD2) {
@@ -156,6 +167,15 @@ export class Pedestals {
         rig.beginInspect(best.x, best.y, best.z);
         this.card.show(best.project);
         this.card.setInspecting(true);
+    }
+
+    endInspect() {
+        this._inspectPoint = null;
+        this.card.setInspecting(false);
+    }
+
+    openActiveProject() {
+        if (this.card.active?.link) window.open(this.card.active.link, "_blank", "noopener");
     }
 
     async _loadAll() {
@@ -434,7 +454,7 @@ export class Pedestals {
      * @param {Vector3} cameraPos
      * @param {ReturnType<import("../core/envProfile.js").getLerped>} env
      */
-    update(playerPos, cameraPos, env) {
+    update(playerPos, cameraPos, env, dt = 1 / 60) {
         const sky = this.sky;
         _splits.set(
             this.shadows.splits[0], this.shadows.splits[1],
@@ -462,19 +482,28 @@ export class Pedestals {
             inspecting ? 6.0 : 4.5
         );
 
-        _near.length = 0;
+        const near = this._nearest;
+        const distances = this._nearestD2;
+        near.fill(null);
+        distances.fill(Infinity);
         for (let i = 0; i < this._points.length; i++) {
             const p = this._points[i];
             const d2 = (playerPos.x - p.x) ** 2 + (playerPos.z - p.z) ** 2;
-            _near.push({ p, d2 });
+            for (let rank = 0; rank < 3; rank++) {
+                if (d2 >= distances[rank]) continue;
+                for (let slot = 2; slot > rank; slot--) {
+                    distances[slot] = distances[slot - 1]; near[slot] = near[slot - 1];
+                }
+                distances[rank] = d2; near[rank] = p;
+                break;
+            }
         }
-        _near.sort((a, b) => a.d2 - b.d2);
 
         // Prop-only key lights — soft, bright, independent of spell attenuation.
         let kn = 0;
         if (focus) {
             // Studio ring around the inspected pillar — every face gets light.
-            const col = PLAZAS[focus.project._zone]?.light || [1, 0.85, 0.55];
+            const col = PLAZAS[focus.project._zone]?.light || DEFAULT_LIGHT;
             const px = focus.x;
             const py = focus.y;
             const pz = focus.z;
@@ -505,9 +534,9 @@ export class Pedestals {
                 playerPos.x, playerPos.y + 4.0, playerPos.z,
                 10.0, 1.0, 0.92, 0.78, 3.5
             );
-            for (let i = 0; i < 3 && i < _near.length; i++) {
-                const p = _near[i].p;
-                const col = PLAZAS[p.project._zone]?.light || [1, 0.85, 0.55];
+            for (let i = 0; i < 3 && near[i]; i++) {
+                const p = near[i];
+                const col = PLAZAS[p.project._zone]?.light || DEFAULT_LIGHT;
                 let fx = cameraPos.x - p.x;
                 let fz = cameraPos.z - p.z;
                 const fl = Math.hypot(fx, fz) || 1;
@@ -524,9 +553,9 @@ export class Pedestals {
                     );
                 }
             }
-            if (_near.length > 0 && kn < KEY_LIGHT_MAX) {
-                const p = _near[0].p;
-                const col = PLAZAS[p.project._zone]?.light || [1, 0.85, 0.55];
+            if (near[0] && kn < KEY_LIGHT_MAX) {
+                const p = near[0];
+                const col = PLAZAS[p.project._zone]?.light || DEFAULT_LIGHT;
                 let fx = cameraPos.x - p.x;
                 let fz = cameraPos.z - p.z;
                 const fl = Math.hypot(fx, fz) || 1;
@@ -573,24 +602,26 @@ export class Pedestals {
         if (focus) {
             this.card.show(focus.project);
         } else {
-            let best = null;
-            let bestD2 = CARD_RANGE * CARD_RANGE;
-            for (let i = 0; i < this._points.length; i++) {
-                const pt = this._points[i];
-                const dx = playerPos.x - pt.x;
-                const dz = playerPos.z - pt.z;
-                const d2 = dx * dx + dz * dz;
-                if (d2 < bestD2) {
-                    bestD2 = d2;
-                    best = pt.project;
+            const current = this._cardPoint;
+            const currentDistance = current ? Math.hypot(playerPos.x - current.x, playerPos.z - current.z) : Infinity;
+            const candidate = distances[0] < CARD_RANGE * CARD_RANGE ? near[0] : null;
+            if (currentDistance > CARD_RANGE + 0.8) this._cardPoint = null;
+            if (!this._cardPoint) {
+                this._cardPoint = candidate;
+                this._cardCandidate = null; this._candidateTime = 0;
+            } else if (candidate && candidate !== current && Math.sqrt(distances[0]) + 0.45 < currentDistance) {
+                if (this._cardCandidate !== candidate) {
+                    this._cardCandidate = candidate; this._candidateTime = 0;
                 }
+                this._candidateTime += dt;
+                if (this._candidateTime >= 0.18) {
+                    this._cardPoint = candidate; this._cardCandidate = null; this._candidateTime = 0;
+                }
+            } else {
+                this._cardCandidate = null; this._candidateTime = 0;
             }
-            if (best) this.card.show(best);
+            if (this._cardPoint) this.card.show(this._cardPoint.project);
             else this.card.hide();
-        }
-
-        if (input.openPressed && this.card.active?.link) {
-            window.open(this.card.active.link, "_blank", "noopener");
         }
     }
 }

@@ -68,7 +68,7 @@ const STANCE = 0.24;
 const HAND_BONES = ["LeftHand", "RightHand", "LeftForeArm", "RightForeArm"];
 
 const _splits = new Vector4();
-const _fill = new Color3(0.5, 0.4, 0.32);
+const _fill = new Color3(0.65, 0.53, 0.42);
 const _min = new Vector3();
 const _max = new Vector3();
 const _normal = new Vector3();
@@ -142,8 +142,10 @@ export class Cyclops {
 
         /** @type {number[]} headshot timestamps (ms) */
         this._headTimes = [];
+        this._elapsedMs = 0;
         /** 0..1 impact flash for health bar. */
         this._hpFlash = 0;
+        this._healthView = { id: "cyclops", name: "Polyphemus", kind: "pips", x: 0, y: 0, z: 0, ratio: 1, pips: 5, maxPips: 5, flash: 0 };
 
         /** @type {(() => void)|null} */
         this.onDeath = null;
@@ -346,7 +348,7 @@ export class Cyclops {
         if (zone === "head") {
             playSfx(HEADSHOT_SFX, HEADSHOT_VOL);
             playSfx(PAIN_SFX, PAIN_VOL);
-            const now = performance.now();
+            const now = this._elapsedMs;
             this._headTimes.push(now);
             this._pruneHeadTimes(now);
             if (this._headTimes.length >= HEADS_TO_KILL) {
@@ -399,19 +401,19 @@ export class Cyclops {
         const dx = playerPos.x - this.x;
         const dz = playerPos.z - this.z;
         if (dx * dx + dz * dz > HP_SHOW_RANGE * HP_SHOW_RANGE) return null;
-        this._pruneHeadTimes(performance.now());
+        this._pruneHeadTimes(this._elapsedMs);
         const ground = this.terrain.heightAt(this.x, this.z);
-        return {
-            id: "cyclops",
-            name: "Polyphemus",
-            x: this.x,
-            y: ground + TARGET_HEIGHT * 0.95,
-            z: this.z,
-            kind: /** @type {"pips"} */ ("pips"),
-            pips: Math.max(0, HEADS_TO_KILL - this._headTimes.length),
-            maxPips: HEADS_TO_KILL,
-            flash: this._hpFlash,
-        };
+        const view = this._healthView;
+        view.id = "cyclops";
+        view.name = "Polyphemus";
+        view.x = this.x;
+        view.y = ground + TARGET_HEIGHT * 0.95;
+        view.z = this.z;
+        view.kind = /** @type {"pips"} */ ("pips");
+        view.pips = Math.max(0, HEADS_TO_KILL - this._headTimes.length);
+        view.maxPips = HEADS_TO_KILL;
+        view.flash = this._hpFlash;
+        return view;
     }
 
     _die() {
@@ -671,12 +673,13 @@ export class Cyclops {
      * @param {Vector3} cameraPos
      * @param {ReturnType<import("../core/envProfile.js").getLerped>} env
      */
-    update(dt, playerPos, cameraPos, env) {
+    update(dt, playerPos, cameraPos, env, clockDt = dt) {
         if (!this._mesh || !this._root || !this._spawned) return;
         if (!this._root.isEnabled()) return;
 
         this.didHit = false;
         const h = Math.max(dt, 0);
+        this._elapsedMs += clockDt * 1000;
         if (this._hpFlash > 0) this._hpFlash = Math.max(0, this._hpFlash - HP_FLASH_DECAY * h);
 
         const pdx = playerPos.x - this.x;
@@ -756,6 +759,11 @@ export class Cyclops {
             this._placeRoot(this._root, h);
         }
 
+        this.refreshLighting(cameraPos, env);
+    }
+
+    /** Refresh view/light uniforms without advancing animation, AI, or projectiles. */
+    refreshLighting(cameraPos, env) {
         const sky = this.sky;
         _splits.set(
             this.shadows.splits[0], this.shadows.splits[1],

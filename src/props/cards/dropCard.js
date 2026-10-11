@@ -4,6 +4,7 @@
  */
 
 import { getCard } from "./catalog.js";
+import { trapDialogFocus } from "../../ui/dialog.js";
 import { add as collectAdd } from "./collection.js";
 import { LORE_CSS, loreHtml, fillLore } from "./cardChrome.js";
 
@@ -111,6 +112,10 @@ export class DropCard {
 
         this.el = document.createElement("div");
         this.el.id = "odyssey-drop";
+        this.el.setAttribute("role", "dialog");
+        this.el.setAttribute("aria-modal", "true");
+        this.el.setAttribute("aria-label", "New collectible card");
+        this.el.setAttribute("aria-hidden", "true");
         this.el.innerHTML =
             '<div class="od-dim" aria-hidden="true"></div>' +
             '<div class="od-scene">' +
@@ -121,10 +126,17 @@ export class DropCard {
             "</div>" +
             '<div class="od-hint"><b>F</b> flip <b>E</b> continue</div>';
         document.body.appendChild(this.el);
+        trapDialogFocus(this.el);
 
         this._img = /** @type {HTMLImageElement} */ (this.el.querySelector(".od-front img"));
         this._loreRoot = /** @type {HTMLElement} */ (this.el.querySelector(".odyssey-lore"));
         this._hint = /** @type {HTMLElement} */ (this.el.querySelector(".od-hint"));
+        this.onContinue = null;
+        this._hint.addEventListener("click", (event) => {
+            const action = event.target.closest("button")?.dataset.drop;
+            if (action === "flip") this.toggleFlip();
+            if (action === "continue") this.onContinue?.();
+        });
 
         this.visible = false;
         this.flipped = false;
@@ -146,14 +158,15 @@ export class DropCard {
         fillLore(this._loreRoot, card);
         if (this._hint) {
             this._hint.innerHTML =
-                cardId === "eumaeus"
-                    ? "<b>F</b> flip <b>E</b> take the bow"
-                    : "<b>F</b> flip <b>E</b> continue";
+                '<button data-drop="flip">Flip <kbd>F</kbd></button><button data-drop="continue">' +
+                (cardId === "eumaeus" ? "Take the bow" : "Continue") + ' <kbd>E / Esc</kbd></button>';
         }
         this.flipped = false;
         this.el.classList.remove("flipped");
         this.visible = true;
         this.el.classList.add("show");
+        this.el.setAttribute("aria-hidden", "false");
+        this.el.querySelector('[data-drop="continue"]').focus();
     }
 
     hide() {
@@ -162,6 +175,7 @@ export class DropCard {
         this.flipped = false;
         this.activeId = null;
         this.el.classList.remove("show", "flipped");
+        this.el.setAttribute("aria-hidden", "true");
     }
 
     toggleFlip() {

@@ -53,9 +53,9 @@ export const S = {
     glintGrazing: 0.72, // how hard the grazing-angle gate bites
     sssStrength: 1.0,
     sssRadius: 1.0,
-    detailNormalStrength: 1.0,
+    detailNormalStrength: 0.82,
     macroHeightScale: 1.0,
-    sastrugiStrength: 1.0,
+    sastrugiStrength: 0.88,
 
     // ----------------------------------------------------------- deformation
     deformDepth: 1.0,
@@ -78,8 +78,8 @@ export const S = {
     exposure: 0.105,
     contrast: 1.14,
     bloomStrength: 0.22,
-    grainStrength: 0.022,
-    sharpenStrength: 0.55,
+    grainStrength: 0.012,
+    sharpenStrength: 0.32,
 
     // --------------------------------------------------------------- systems
     showTerrain: true,

@@ -11,10 +11,12 @@ import { start as startBootMusic, stop as stopBootMusic } from "./bootMusic.js";
 const bar = /** @type {HTMLElement} */ (document.getElementById("boot-bar"));
 const label = /** @type {HTMLElement} */ (document.getElementById("boot-phase"));
 const root = /** @type {HTMLElement} */ (document.getElementById("boot"));
-const hint = /** @type {HTMLElement} */ (document.getElementById("hint"));
 const crosshair = /** @type {HTMLElement} */ (document.getElementById("crosshair"));
 
 let progress = 0;
+export const timings = [];
+let phaseStart = performance.now();
+let phaseName = "initializing";
 
 // Kick music as soon as the loading module is imported (races GPU warm-up).
 startBootMusic();
@@ -29,6 +31,10 @@ export function nextFrame() {
  * @param {number} to target progress, 0..1
  */
 export async function phase(text, to) {
+    const now = performance.now();
+    timings.push({ phase: phaseName, durationMs: now - phaseStart });
+    phaseName = text;
+    phaseStart = now;
     if (label) label.textContent = text;
     progress = Math.max(progress, to);
     if (bar) bar.style.width = (progress * 100).toFixed(1) + "%";
@@ -43,12 +49,11 @@ export async function done() {
     if (vid) vid.pause();
     void stopBootMusic({ fadeMs: 700 });
     root?.classList.add("gone");
-    hint?.classList.add("show");
+    document.body.dataset.ready = "true";
     // Crosshair waits until Eumaeus gifts the bow (main.js toggles .show).
     setTimeout(() => {
         root?.remove();
-        hint?.classList.remove("show");
-    }, 6000);
+    }, 1000);
 }
 
 /** Show or hide the centre aim reticle. */

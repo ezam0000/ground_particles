@@ -9,6 +9,9 @@
     "preview": "vite preview",
     "check": "npx eslint src scripts && node scripts/check.mjs",
     "smoke": "node scripts/smoke.mjs",
+    "smoke:polish": "node scripts/polishSmoke.mjs",
+    "benchmark": "node scripts/benchmark.mjs",
+    "check:assets": "node scripts/checkAssets.mjs",
     "sync:portfolio": "node scripts/syncPortfolio.mjs"
   },
   "keywords": [

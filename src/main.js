@@ -9,6 +9,12 @@
  * adapter isn't there we say so once and stop.
  */
 
+import "./ui/polish.css";
+import { InteractionModes } from "./core/interactionModes.js";
+import { DestinationGuide } from "./core/destinations.js";
+import { ExperienceUI } from "./ui/experience.js";
+import { applyMotionPreference, onPreferenceChange } from "./core/preferences.js";
+
 import { WebGPUEngine } from "@babylonjs/core/Engines/webgpuEngine";
 import { Scene } from "@babylonjs/core/scene";
 import { Vector3, Color3, Color4 } from "@babylonjs/core/Maths/math";
@@ -89,7 +95,9 @@ async function boot() {
     const applyScale = () => engine.setHardwareScalingLevel(1 / S.resolutionScale);
     applyScale();
     onChange("resolutionScale", applyScale);
-    window.addEventListener("resize", () => engine.resize());
+    // Resize at a frame boundary, never while a swapchain texture is in use.
+    let needsResize = false;
+    window.addEventListener("resize", () => { needsResize = true; });
 
     registerShaders();
 
@@ -137,6 +145,10 @@ async function boot() {
     const character = new CharacterController(terrain);
     character.position.set(0, 0, 0);
     character.position.y = terrain.heightAt(0, 0);
+    // Start along the fall line so the idle stance sits across a contour,
+    // instead of placing one foot uphill and the other well below it.
+    terrain.normalAt(0, 0, character.groundNormal);
+    character.facing = Math.atan2(character.groundNormal.x, character.groundNormal.z);
 
     // Airborne grit: footfall kicks and jump-landing bursts.
     const spray = new SprayField(scene, terrain, sky, shadows);
@@ -177,40 +189,6 @@ async function boot() {
     const compass = new Compass();
     setVoSubtitleHandler((text, dur, opts) => subtitles.show(text, dur, opts));
 
-    /** Nearest incomplete Odyssey objective for the compass needle. */
-    const objectiveAt = () => {
-        if (!avatar.hasBow) return { x: eumaeus.x, z: eumaeus.z, label: "Eumaeus" };
-        if (!hasCard("argos") && argos.present) return { x: argos.x, z: argos.z, label: "Argos" };
-        if (!sheep.allDead) {
-            let best = null;
-            let bestD = Infinity;
-            for (const s of sheep.sheep) {
-                if (!s.alive) continue;
-                const dx = s.x - character.position.x;
-                const dz = s.z - character.position.z;
-                const d2 = dx * dx + dz * dz;
-                if (d2 < bestD) {
-                    bestD = d2;
-                    best = s;
-                }
-            }
-            if (best) return { x: best.x, z: best.z, label: "Pasture" };
-            return { x: 28, z: -12, label: "Pasture" };
-        }
-        if (!cyclops._spawned || cyclops.alive) {
-            if (cyclops._spawned && cyclops.alive) {
-                return { x: cyclops.x, z: cyclops.z, label: "Polyphemus" };
-            }
-            return { x: 28, z: -12, label: "Polyphemus" };
-        }
-        if (antinous._spawned && antinous.alive) {
-            return { x: antinous.x, z: antinous.z, label: "Antinoös" };
-        }
-        if (!hasCard("laestrygonians")) return { x: giant.x, z: giant.z, label: "Giant" };
-        if (!hasCard("sheep")) return { x: 28, z: -12, label: "Sheep" };
-        return null;
-    };
-
     // Bow combat: pooled arrows + procedural bow on the player's hand.
     const arrows = new ArrowPool(scene, terrain, sky, shadows, lights);
     arrows.giant = giant;
@@ -240,10 +218,7 @@ async function boot() {
     };
 
     const showDrop = (id, x, z) => {
-        character.locked = true;
-        const gy = terrain.heightAt(x, z) + 1.6;
-        rig.beginInspect(x, gy, z);
-        dropCard.show(id);
+        modes.showDrop(id, x, z, terrain.heightAt(x, z) + 1.6);
     };
 
     const grantBow = () => {
@@ -285,12 +260,7 @@ async function boot() {
         if (zeusDeath.visible) return;
         if (who === "argos") argos.banish();
         arrows.clearFlying();
-        if (dropCard.visible) dropCard.hide();
-        if (cardBook.visible) cardBook.close();
-        if (rig.inspecting) rig.endInspect();
-        input.inspecting = false;
-        character.locked = true;
-        zeusDeath.show();
+        modes.showDeath();
     };
     arrows.onSacredHit = strikeZeus;
 
@@ -315,6 +285,20 @@ async function boot() {
 
     initInput(canvas);
     canvas.addEventListener("click", () => unlockAudio());
+    const world = { avatar, character, eumaeus, argos, sheep, cyclops, antinous, giant, pedestals };
+    const guide = new DestinationGuide(world);
+    const ui = new ExperienceUI(guide);
+    cardBook.getDiscoveryHint = (id) => guide.discoveryHint(id);
+    const modes = new InteractionModes({
+        canvas, scene, rig, input, ui, cardBook, dropCard, zeusDeath, pedestals,
+        onDropClose: (id) => { if (id === "eumaeus" && avatar.hasBow) bowToast.show(); },
+        onRespawn: softRespawn,
+    });
+    applyMotionPreference();
+    onPreferenceChange(applyMotionPreference);
+    const viewSystems = [avatar, giant, antinous, sheep, cyclops, eumaeus, argos, arrows];
+    const litMaterials = [terrain.material, spray.material];
+
 
     // ------------------------------------------------------------- warm-up
     // Everything that can compile, compiles here — behind the loading screen.
@@ -326,25 +310,21 @@ async function boot() {
     avatar.update(0, rig.camera.position, getLerped());
     await avatar.warmUp();
     bow.attach(avatar);
-    await bow.warmUp();
-    await arrows.warmUp();
     spray.update(0, rig.camera.position);
-    await spray.warmUp();
     pedestals.update(character.position, rig.camera.position, getLerped());
-    await pedestals.warmUp();
     giant.update(0, character.position, rig.camera.position, getLerped());
-    await giant.warmUp();
     antinous.update(0, character.position, rig.camera.position, getLerped());
-    await antinous.warmUp();
     sheep.update(0, rig.camera.position, getLerped());
-    await sheep.warmUp();
     cyclops.update(0, character.position, rig.camera.position, getLerped());
-    await cyclops.warmUp();
     eumaeus.update(0, rig.camera.position, getLerped());
-    await eumaeus.warmUp();
     argos.update(0, rig.camera.position, getLerped());
-    await argos.warmUp();
-    await zeusDeath.warmUp();
+    // Constructors already download in parallel. These independent consumers
+    // can also decode/compile together, after the player skeleton is ready.
+    await Promise.all([
+        bow.warmUp(), arrows.warmUp(), spray.warmUp(), pedestals.warmUp(),
+        giant.warmUp(), antinous.warmUp(), sheep.warmUp(), cyclops.warmUp(),
+        eumaeus.warmUp(), argos.warmUp(), zeusDeath.warmUp(),
+    ]);
     await whenReady(sky.material, "sky material", [sky.mesh, false]);
     await depthPass.warmUp();
     post.update(0, rig.distance);
@@ -357,196 +337,164 @@ async function boot() {
     // A few real frames so every render target is allocated and every pipeline
     // has actually been bound at least once.
     for (let i = 0; i < 3; i++) {
+        // Submit while the canvas texture is still alive, before yielding.
+        engine.beginFrame();
         scene.render();
+        engine.endFrame();
         await loading.nextFrame();
     }
 
     // ------------------------------------------------------------- run loop
     let prev = performance.now();
     let time = 0;
+    const takeArgos = () => {
+        const a = argos.pollCardInspect(character.position);
+        if (!a) return false;
+        showDrop("argos", a.x, a.z);
+        argos.ascend(spray);
+        return true;
+    };
+    const interact = () => {
+        const pos = character.position;
+        if (antinous.pollRevive(pos)) { input.inspectPressed = false; return; }
+        const argosNear = !hasCard("argos") && argos.inInspectRange(pos);
+        const wantGift = !avatar.hasBow;
+        let argosFirst = argosNear;
+        if (argosNear && wantGift) {
+            const ex = pos.x - eumaeus.x, ez = pos.z - eumaeus.z;
+            argosFirst = argos.dist2To(pos) <= ex * ex + ez * ez;
+        }
+        if (argosFirst && takeArgos()) return;
+        if (eumaeus.pollGift(pos, wantGift)) { input.inspectPressed = false; return; }
+        if (!argosFirst && argosNear && takeArgos()) return;
+        if (!hasCard("laestrygonians")) {
+            const g = giant.pollCardInspect(pos);
+            if (g) { showDrop("laestrygonians", g.x, g.z); return; }
+        }
+        if (!hasCard("sheep")) {
+            const s = sheep.pollCardInspect(pos, time);
+            if (s) { showDrop("sheep", s.x, s.z); return; }
+        }
+        pedestals.pollInspect(rig, pos);
+        if (input.inspecting) modes.set("inspect");
+    };
 
-    engine.runRenderLoop(() => {
+    const renderFrame = () => {
+        if (document.hidden) return;
         const now = performance.now();
-        let dtMs = now - prev;
+        const elapsed = Math.max(0.0001, (now - prev) / 1000);
+        const renderDt = Math.min(0.1, elapsed);
         prev = now;
-        if (dtMs > 100) dtMs = 100;
-        const dt = S.freezeTime ? 0 : dtMs / 1000;
-        time += dt;
-
+        if (needsResize) { needsResize = false; engine.resize(); }
         pollInput();
-        updateEnv(dt);
-
-        if (zeusDeath.visible) {
-            if (input.openPressed) softRespawn();
-        } else if (dropCard.visible) {
-            if (input.flipPressed) dropCard.toggleFlip();
-            if (input.openPressed) {
-                const taughtBow = dropCard.activeId === "eumaeus";
-                dropCard.hide();
-                character.locked = false;
-                if (rig.inspecting) rig.endInspect();
-                if (taughtBow && avatar.hasBow) bowToast.show();
-            }
-        } else if (cardBook.visible) {
-            if (input.flipPressed) cardBook.toggleFlip();
-            if (input.navLeftPressed) cardBook.browse(-1);
-            if (input.navRightPressed) cardBook.browse(1);
-            if (input.bookPressed) {
-                cardBook.close();
-                character.locked = false;
-            }
-        } else {
-            if (input.bookPressed) {
-                cardBook.open();
-                character.locked = true;
-            } else if (!antinous.pollRevive(character.position)) {
-                let awarded = false;
-                if (!input.inspecting && !rig.inspecting) {
-                    const pos = character.position;
-                    const needsArgosCard = !hasCard("argos");
-                    const argosNear = needsArgosCard && argos.inInspectRange(pos);
-                    const wantGift = !avatar.hasBow;
-                    let tryArgosFirst = argosNear;
-                    if (argosNear && wantGift) {
-                        const ad2 = argos.dist2To(pos);
-                        const edx = pos.x - eumaeus.x;
-                        const edz = pos.z - eumaeus.z;
-                        tryArgosFirst = ad2 <= edx * edx + edz * edz;
-                    }
-
-                    const takeArgos = () => {
-                        const a = argos.pollCardInspect(pos);
-                        if (!a) return false;
-                        showDrop("argos", a.x, a.z);
-                        argos.ascend(spray);
-                        return true;
-                    };
-
-                    if (tryArgosFirst && takeArgos()) {
-                        awarded = true;
-                    } else if (eumaeus.pollGift(pos, wantGift)) {
-                        awarded = true;
-                    } else if (!tryArgosFirst && argosNear && takeArgos()) {
-                        awarded = true;
-                    }
-
-                    if (!awarded && !hasCard("laestrygonians")) {
-                        const g = giant.pollCardInspect(character.position);
-                        if (g) {
-                            showDrop("laestrygonians", g.x, g.z);
-                            awarded = true;
-                        }
-                    }
-                    if (!awarded && !hasCard("sheep")) {
-                        const s = sheep.pollCardInspect(character.position, time);
-                        if (s) {
-                            showDrop("sheep", s.x, s.z);
-                            awarded = true;
-                        }
-                    }
-                }
-                if (!awarded) pedestals.pollInspect(rig, character.position);
-            }
+        modes.routeInput();
+        if (modes.playing) interact();
+        if ((modes.playing || (modes.mode === "inspect" && !modes.suspended)) && input.openPressed) {
+            pedestals.openActiveProject();
+            input.openPressed = false;
+        }
+        const simulate = modes.playing && !S.freezeTime;
+        const dt = simulate ? renderDt : 0;
+        scene.animationTimeScale = simulate ? 1 : 0;
+        if (simulate) {
+            time += dt;
+            updateEnv(dt);
+            character.update(dt, rig);
+            pedestals.resolveCollision(character.position);
+            giant.resolveCollision(character.position);
+            antinous.resolveCollision(character.position);
+            sheep.resolveCollision(character.position);
+            cyclops.resolveCollision(character.position);
+            eumaeus.resolveCollision(character.position);
+            argos.resolveCollision(character.position);
+            terrain.heightfield.clampToPlayArea(character.position);
+            contact.update(dt);
         }
 
-        character.update(dt, rig);
-        pedestals.resolveCollision(character.position);
-        giant.resolveCollision(character.position);
-        antinous.resolveCollision(character.position);
-        sheep.resolveCollision(character.position);
-        cyclops.resolveCollision(character.position);
-        eumaeus.resolveCollision(character.position);
-        argos.resolveCollision(character.position);
-        terrain.heightfield.clampToPlayArea(character.position);
-        contact.update(dt);
-
-        _vel.copyFrom(character.velocity);
-        rig.update(dt, character.position, _vel, character.lean, character.speed01);
-        compass.update(rig.yaw, objectiveAt(), character.position.x, character.position.z);
-
-        // Jitters the projection and republishes everything the screen-space
-        // passes derive from the camera. Must be after the rig has moved and
-        // before anything reads `scene.getTransformMatrix()` — which the depth
-        // prepass and the beauty pass both do.
-        post.update(dt, rig.distance);
+        if (modes.cameraActive || (!modes.suspended && modes.mode === "drop")) {
+            if (simulate) _vel.copyFrom(character.velocity);
+            else _vel.setAll(0);
+            rig.update(renderDt, character.position, _vel, simulate ? character.lean : 0, simulate ? character.speed01 : 0);
+        }
+        const target = guide.update(time);
+        compass.update(rig.yaw, target, character.position.x, character.position.z);
+        post.update(renderDt, rig.distance);
         sky.update();
         sky.render(rig, time);
         shadows.update(rig.camera, sky.sunDir);
-        // After the shadow refit, so every lit material carries this frame's
-        // cascade matrices; before the terrain, so the brushes are in the
-        // staging array when the simulation pass runs.
-        pedestals.update(character.position, rig.camera.position, getLerped());
-        giant.update(dt, character.position, rig.camera.position, getLerped());
-        if (giant.didHit) {
-            character.applyHit(giant.x, giant.z);
-            avatar.playHit();
-        }
-        sheep.update(dt, rig.camera.position, getLerped());
-        cyclops.update(dt, character.position, rig.camera.position, getLerped());
-        if (cyclops.didHit) {
-            character.applyHit(cyclops.x, cyclops.z, 5.4);
-            avatar.playHit();
-        }
-        antinous.update(dt, character.position, rig.camera.position, getLerped());
-        eumaeus.update(dt, rig.camera.position, getLerped());
-        {
-            const pos = character.position;
-            const needsArgosCard = !hasCard("argos");
-            const argosNear = needsArgosCard && argos.inInspectRange(pos);
-            let preferArgosHint = argosNear && avatar.hasBow;
-            if (argosNear && !avatar.hasBow) {
-                const ad2 = argos.dist2To(pos);
-                const edx = pos.x - eumaeus.x;
-                const edz = pos.z - eumaeus.z;
-                preferArgosHint = ad2 <= edx * edx + edz * edz;
+        const env = getLerped();
+        pedestals.update(character.position, rig.camera.position, env, dt);
+        if (simulate) {
+            giant.update(dt, character.position, rig.camera.position, env);
+            if (giant.didHit) { character.applyHit(giant.x, giant.z); avatar.playHit(); }
+            sheep.update(dt, rig.camera.position, env);
+            cyclops.update(dt, character.position, rig.camera.position, env, elapsed);
+            if (cyclops.didHit) { character.applyHit(cyclops.x, cyclops.z, 5.4); avatar.playHit(); }
+            antinous.update(dt, character.position, rig.camera.position, env);
+            eumaeus.update(dt, rig.camera.position, env);
+            argos.update(dt, rig.camera.position, env);
+            avatar.update(dt, rig.camera.position, env);
+            rig.getLookDir(_aim);
+            if (avatar.hasBow) {
+                const cam = rig.camera.position;
+                loading.setCrosshairWarn(
+                    argos.aimHit(cam.x, cam.y, cam.z, _aim.x, _aim.y, _aim.z) ||
+                    eumaeus.aimHit(cam.x, cam.y, cam.z, _aim.x, _aim.y, _aim.z)
+                );
             }
-            eumaeus.updateTalkHint(pos, !avatar.hasBow && !preferArgosHint);
-            argos.updateInspectHint(pos, preferArgosHint);
+            bow.update(dt, rig.camera.position, env, _aim);
+            arrows.update(dt, rig.camera.position, env);
+        } else {
+            // Updating dt=0 still lets some actors attack/change animation.
+            // Only their view-dependent material bindings run during reading.
+            for (const system of viewSystems) system.refreshLighting(rig.camera.position, env);
+            bow.update(0, rig.camera.position, env);
         }
-        argos.update(dt, rig.camera.position, getLerped());
-        avatar.update(dt, rig.camera.position, getLerped());
-        rig.getLookDir(_aim);
-        if (avatar.hasBow) {
-            const cam = rig.camera.position;
-            const warn =
-                argos.aimHit(cam.x, cam.y, cam.z, _aim.x, _aim.y, _aim.z) ||
-                eumaeus.aimHit(cam.x, cam.y, cam.z, _aim.x, _aim.y, _aim.z);
-            loading.setCrosshairWarn(warn);
+        const pos = character.position;
+        const argosNear = !hasCard("argos") && argos.inInspectRange(pos);
+        let preferArgos = argosNear && avatar.hasBow;
+        if (argosNear && !avatar.hasBow) {
+            const ex = pos.x - eumaeus.x, ez = pos.z - eumaeus.z;
+            preferArgos = argos.dist2To(pos) <= ex * ex + ez * ez;
         }
-        bow.update(dt, rig.camera.position, getLerped(), _aim);
-        arrows.update(dt, rig.camera.position, getLerped());
-        // Pedestals just refilled the light pool — push it into the rest of the scene.
-        for (const m of [terrain.material, spray.material]) {
-            lights.apply(m);
-        }
-        terrain.update(rig.camera.position, character.position, dt);
-        spray.update(dt, rig.camera.position);
-
+        eumaeus.updateTalkHint(pos, !avatar.hasBow && !preferArgos);
+        argos.updateInspectHint(pos, preferArgos);
+        for (const material of litMaterials) lights.apply(material);
+        terrain.update(rig.camera.position, pos, dt);
+        if (simulate) spray.update(dt, rig.camera.position);
         healthBars.beginFrame();
-        {
-            const gv = giant.getHealthView(character.position);
-            if (gv) healthBars.track(gv);
-            const av = antinous.getHealthView(character.position);
-            if (av) healthBars.track(av);
-            const cv = cyclops.getHealthView(character.position);
-            if (cv) healthBars.track(cv);
+        if (modes.playing) {
+            const gv = giant.getHealthView(pos); if (gv) healthBars.track(gv);
+            const av = antinous.getHealthView(pos); if (av) healthBars.track(av);
+            const cv = cyclops.getHealthView(pos); if (cv) healthBars.track(cv);
         }
         healthBars.endFrame();
-
+        ui.update(modes.mode, modes.suspended, target, avatar.hasBow, pedestals.card.active, input.locked);
         scene.render();
         post.endFrame();
-
         endFrame();
+    };
+    const resetFrameTime = () => { prev = performance.now(); scene.resetLastAnimationTimeFrame(); };
+    window.addEventListener("focus", resetFrameTime);
+    document.addEventListener("visibilitychange", () => {
+        resetFrameTime();
+        if (document.hidden) engine.stopRenderLoop(renderFrame);
+        else engine.runRenderLoop(renderFrame);
     });
+    engine.runRenderLoop(renderFrame);
+    if (document.hidden) { modes.pause(); engine.stopRenderLoop(renderFrame); }
 
     await loading.done();
+    modes.activate();
 
     globalThis.DUNES = {
         engine, scene, rig, character, avatar, contact, spray, pedestals, giant,
         antinous, sheep, cyclops, eumaeus, argos, dropCard, cardBook, zeusDeath,
         bowToast, healthBars, subtitles, compass, bow, arrows,
         terrain, sky, shadows, post, depthPass,
-        S, input,
+        S, input, modes, guide, ui,
+        loadingTimings: loading.timings,
+        get gameTime() { return time; },
     };
 }
 

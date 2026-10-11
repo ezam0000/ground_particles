@@ -4,6 +4,8 @@
  */
 
 import { list as listOwned } from "./collection.js";
+import { CARDS, getCard } from "./catalog.js";
+import { trapDialogFocus } from "../../ui/dialog.js";
 import { LORE_CSS, loreHtml, fillLore } from "./cardChrome.js";
 
 const CSS = `
@@ -144,10 +146,15 @@ export class CardBook {
 
         this.el = document.createElement("div");
         this.el.id = "odyssey-book";
+        this.el.setAttribute("role", "dialog");
+        this.el.setAttribute("aria-modal", "true");
+        this.el.setAttribute("aria-label", "Card book");
+        this.el.setAttribute("aria-hidden", "true");
         this.el.innerHTML =
             '<div class="ob-dim" aria-hidden="true"></div>' +
             '<div class="ob-title">Card book</div>' +
-            '<div class="ob-empty">No cards yet — defeat the island’s foes.</div>' +
+            '<div class="ob-progress"></div>' +
+            '<div class="ob-empty">Your discoveries belong here. Speak with characters, inspect the world, and face its challengers to collect cards.</div>' +
             '<div class="ob-stage" hidden>' +
             '  <div class="ob-card">' +
             '    <div class="ob-face ob-front"><div class="ob-face-inner"><img alt="" decoding="async" /></div></div>' +
@@ -155,14 +162,41 @@ export class CardBook {
             "  </div>" +
             "</div>" +
             '<div class="ob-strip" hidden></div>' +
-            '<div class="ob-hint"><b>←→</b> browse <b>F</b> flip <b>B</b> close</div>';
+            '<details class="ob-discovery"><summary>Discovery hints</summary><p></p></details>' +
+            '<div class="ob-hint"><button data-book="previous">Previous</button><button data-book="next">Next</button><button data-book="flip">Flip <kbd>F</kbd></button><button data-book="close">Close <kbd>B / Esc</kbd></button></div>';
         document.body.appendChild(this.el);
+        trapDialogFocus(this.el);
 
         this._empty = /** @type {HTMLElement} */ (this.el.querySelector(".ob-empty"));
         this._stage = /** @type {HTMLElement} */ (this.el.querySelector(".ob-stage"));
         this._strip = /** @type {HTMLElement} */ (this.el.querySelector(".ob-strip"));
         this._img = /** @type {HTMLImageElement} */ (this.el.querySelector(".ob-front img"));
         this._loreRoot = /** @type {HTMLElement} */ (this.el.querySelector(".odyssey-lore"));
+        this._progress = this.el.querySelector(".ob-progress");
+        this._discovery = this.el.querySelector(".ob-discovery p");
+        this.getDiscoveryHint = () => "Explore the dunes. Speak to characters and inspect nearby landmarks.";
+        this.onClose = null;
+        this.el.addEventListener("click", (event) => {
+            const button = event.target.closest("button");
+            if (!button) return;
+            const action = button.dataset.book;
+            if (action === "close") this.onClose?.();
+            if (action === "flip") this.toggleFlip();
+            if (action === "previous") this.browse(-1);
+            if (action === "next") this.browse(1);
+            if (button.dataset.card) {
+                const index = this._cards.findIndex((c) => c.id === button.dataset.card);
+                if (index >= 0) {
+                    this._index = index;
+                    this.flipped = false; this.el.classList.remove("flipped");
+                    this._renderFocus(); this._renderStrip();
+                    this._strip.querySelector(`[data-card="${button.dataset.card}"]`)?.focus();
+                } else {
+                    this._discovery.textContent = this.getDiscoveryHint(button.dataset.card);
+                    this.el.querySelector("details").open = true;
+                }
+            }
+        });
 
         this.visible = false;
         this.flipped = false;
@@ -177,6 +211,8 @@ export class CardBook {
         this.flipped = false;
         this.el.classList.add("show");
         this.el.classList.remove("flipped");
+        this.el.setAttribute("aria-hidden", "false");
+        this.el.querySelector('[data-book="close"]').focus();
     }
 
     close() {
@@ -184,6 +220,7 @@ export class CardBook {
         this.visible = false;
         this.flipped = false;
         this.el.classList.remove("show", "flipped");
+        this.el.setAttribute("aria-hidden", "true");
     }
 
     toggle() {
@@ -193,11 +230,17 @@ export class CardBook {
 
     _refresh() {
         this._cards = listOwned();
+        this._progress.textContent = `Collected ${this._cards.length} of ${CARDS.length}`;
+        const missing = CARDS.find((c) => !this._cards.includes(c));
+        this._discovery.textContent = missing ? this.getDiscoveryHint(missing.id) : "All six cards are collected. Their stories stay saved for your next visit.";
+        this.el.querySelector('[data-book="flip"]').disabled = !this._cards.length;
+        this.el.querySelector('[data-book="previous"]').disabled = this._cards.length < 2;
+        this.el.querySelector('[data-book="next"]').disabled = this._cards.length < 2;
         if (!this._cards.length) {
             this._empty.hidden = false;
             this._stage.hidden = true;
-            this._strip.hidden = true;
-            this._strip.innerHTML = "";
+            this._strip.hidden = false;
+            this._renderStrip();
             return;
         }
         this._empty.hidden = true;
@@ -220,24 +263,33 @@ export class CardBook {
 
     _renderStrip() {
         this._strip.innerHTML = "";
-        for (let i = 0; i < this._cards.length; i++) {
-            const img = document.createElement("img");
-            img.className = "ob-thumb" + (i === this._index ? " active" : "");
-            img.src = this._cards[i].front;
-            img.alt = this._cards[i].title;
-            img.decoding = "async";
-            this._strip.appendChild(img);
+        for (let slot = 0; slot < CARDS.length; slot++) {
+            const entry = CARDS[slot];
+            const owned = this._cards.includes(entry);
+            const button = document.createElement("button");
+            button.type = "button";
+            button.dataset.card = entry.id;
+            button.className = "ob-slot" + (owned ? "" : " locked") + (this._cards[this._index] === entry ? " active" : "");
+            button.setAttribute("aria-label", owned ? entry.title : `Undiscovered card ${slot + 1}; show discovery hint`);
+            if (owned) {
+                const img = document.createElement("img");
+                img.src = getCard(entry.id).front; img.alt = ""; img.decoding = "async";
+                button.appendChild(img);
+            } else button.textContent = "?";
+            this._strip.appendChild(button);
         }
     }
 
     /** @param {number} delta */
     browse(delta) {
         if (!this.visible || this._cards.length < 2) return;
+        const focused = document.activeElement?.closest(".ob-slot")?.dataset.card;
         this._index = (this._index + delta + this._cards.length) % this._cards.length;
         this.flipped = false;
         this.el.classList.remove("flipped");
         this._renderFocus();
         this._renderStrip();
+        if (focused) this._strip.querySelector(`[data-card="${focused}"]`)?.focus();
     }
 
     toggleFlip() {

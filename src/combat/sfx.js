@@ -2,6 +2,13 @@
  * Tiny pooled Web Audio player — low-latency one-shots, no per-frame alloc.
  */
 
+import { preferences, onPreferenceChange } from "../core/preferences.js";
+
+let _master = null;
+onPreferenceChange((key) => {
+    if (key === "volume" && _master) _master.gain.setTargetAtTime(preferences.volume, _ctx.currentTime, 0.02);
+});
+
 /** @type {AudioContext|null} */
 let _ctx = null;
 /** @type {Map<string, AudioBuffer>} */
@@ -14,6 +21,9 @@ function ctx() {
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return null;
     _ctx = new AC();
+    _master = _ctx.createGain();
+    _master.gain.value = preferences.volume;
+    _master.connect(_ctx.destination);
     return _ctx;
 }
 
@@ -63,13 +73,13 @@ export function playSfx(url, volume = 0.5) {
         gain.gain.value = volume;
         src.buffer = buf;
         src.connect(gain);
-        gain.connect(c.destination);
+        gain.connect(_master);
         src.start(0);
         return;
     }
     // Decode in flight or WebAudio missing — HTMLAudio fallback.
     const a = new Audio(url);
-    a.volume = volume;
+    a.volume = volume * preferences.volume;
     void a.play().catch(() => {});
     if (!_buffers.has(url)) void preloadSfx(url);
 }

@@ -3,6 +3,8 @@
  * HTMLAudio (not the combat one-shot pool). Gesture fallback for autoplay.
  */
 
+import { preferences } from "./preferences.js";
+
 const TRACKS = [
     "/assets/boot/loading_1.mp3",
     "/assets/boot/loading_2.mp3",
@@ -63,7 +65,7 @@ export function start() {
     const a = new Audio(pick());
     a.loop = true;
     a.preload = "auto";
-    a.volume = VOL;
+    a.volume = VOL * preferences.volume;
     _audio = a;
     tryPlay();
 }

@@ -1,0 +1,142 @@
+[
+  {
+    "asset": "public/assets/character/arrow.glb",
+    "sourceSha256": "fc02ad9dc395988c2260ccc73e5eca0c2f4d40c8dbfb647297c9ca50d6991190",
+    "outputSha256": "a88e7529a6a7ae6c3bf0f6f32984770399fe41d97832461bad13ccef1fe17483",
+    "sourceBytes": 1713364,
+    "outputBytes": 83808,
+    "sourceTriangles": 46062,
+    "outputTriangles": 2000,
+    "sourceBounds": [
+      [
+        -0.06336865574121475,
+        0,
+        -0.8397791981697083
+      ],
+      [
+        0.07555332034826279,
+        0.699999988079071,
+        0.8397197723388672
+      ]
+    ],
+    "outputBounds": [
+      [
+        -0.0639137476682663,
+        0.00018586849910207093,
+        -0.8402512669563293
+      ],
+      [
+        0.07597686350345612,
+        0.7005841135978699,
+        0.8397009372711182
+      ]
+    ],
+    "method": "Blender collapse decimation, merged seam vertices, smooth normals; bowstring span preserved separately with planar dissolve; original UVs/node transforms/albedo, existing JPEG crush"
+  },
+  {
+    "asset": "public/assets/character/bow.glb",
+    "sourceSha256": "4935e8092664f2a4a3d3adcd1ecb78e4b451b94aba08670213a81a1bd52be95b",
+    "outputSha256": "d4a968bcbd63094c075f724ab29fc4c159e99fdb97fc81076383b7889a644372",
+    "sourceBytes": 844512,
+    "outputBytes": 221848,
+    "sourceTriangles": 30734,
+    "outputTriangles": 6000,
+    "sourceBounds": [
+      [
+        -0.438769668340683,
+        2.9802322387695312e-08,
+        -0.034144509583711624
+      ],
+      [
+        0.4375852942466736,
+        1,
+        0.03769458830356598
+      ]
+    ],
+    "outputBounds": [
+      [
+        -0.4389609098434448,
+        -5.150453944224864e-05,
+        -0.034594058990478516
+      ],
+      [
+        0.437724769115448,
+        1.000203013420105,
+        0.03795824199914932
+      ]
+    ],
+    "method": "Blender collapse decimation, merged seam vertices, smooth normals; bowstring span preserved separately with planar dissolve; original UVs/node transforms/albedo, existing JPEG crush"
+  },
+  {
+    "asset": "public/assets/odyssey/avatars/antinous.png",
+    "sourceSha256": "38f2d8b748b502da4c3620f33db3b6e29033795e21577d2aa7322ec3f2155d72",
+    "outputSha256": "85213726e98990314afdae79b2d20839e2302779a1a8b1518e791e615cf95a9c",
+    "sourceBytes": 1165937,
+    "outputBytes": 115453,
+    "outputDimensions": [
+      256,
+      256
+    ],
+    "method": "Pillow Lanczos, RGBA PNG, compression level 9"
+  },
+  {
+    "asset": "public/assets/odyssey/avatars/argos.png",
+    "sourceSha256": "acc60439a9954ab4d5b38c46eb68b0cd799b11eca8908dacaf77183c6ce3bde4",
+    "outputSha256": "08dabf639a7f3890748b18550ea90eb5f73f5b60c2c2dc21e7f92f9a2ce9aa39",
+    "sourceBytes": 1433830,
+    "outputBytes": 122216,
+    "outputDimensions": [
+      256,
+      256
+    ],
+    "method": "Pillow Lanczos, RGBA PNG, compression level 9"
+  },
+  {
+    "asset": "public/assets/odyssey/avatars/eumaeus.png",
+    "sourceSha256": "eea57027f335e5939cee4945015a1db83236ef3d01367d1114ac1ea0d18b877e",
+    "outputSha256": "97262da3886b4c2563e122165a07f465de8528bff5ffa013e100ddb1dd1e9c7e",
+    "sourceBytes": 1249192,
+    "outputBytes": 118714,
+    "outputDimensions": [
+      256,
+      256
+    ],
+    "method": "Pillow Lanczos, RGBA PNG, compression level 9"
+  },
+  {
+    "asset": "public/assets/odyssey/avatars/laestrygonian.png",
+    "sourceSha256": "06825d44021fea89425e175ff6fa1aba9f0fc59de9e29946b606584fdcde6732",
+    "outputSha256": "726a1f51455bacf25ec8efec47a2390b5ac09008b6b4e07bc4b3380e12838aa3",
+    "sourceBytes": 995035,
+    "outputBytes": 107001,
+    "outputDimensions": [
+      256,
+      256
+    ],
+    "method": "Pillow Lanczos, RGBA PNG, compression level 9"
+  },
+  {
+    "asset": "public/assets/odyssey/avatars/polyphemus.png",
+    "sourceSha256": "8acebcc3c32d4d9065a07b59e255046b6e620ee6e9e2d4bc91070a2c35497777",
+    "outputSha256": "a1a2e336b9af7c19218d818621fcfd2116f8b4276b35c04eaadef4f4757b5e97",
+    "sourceBytes": 1238520,
+    "outputBytes": 119613,
+    "outputDimensions": [
+      256,
+      256
+    ],
+    "method": "Pillow Lanczos, RGBA PNG, compression level 9"
+  },
+  {
+    "asset": "public/assets/odyssey/avatars/sheep.png",
+    "sourceSha256": "61b3fee31b796b301fab3dd78b46be8b7034d8e2d0005ec9dabf963eb57c505e",
+    "outputSha256": "c408ffa7075cd2895354ff2b8262c83efd41c0e7e7865defc74e2883ee2d967a",
+    "sourceBytes": 1183452,
+    "outputBytes": 118161,
+    "outputDimensions": [
+      256,
+      256
+    ],
+    "method": "Pillow Lanczos, RGBA PNG, compression level 9"
+  }
+]

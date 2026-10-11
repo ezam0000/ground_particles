@@ -14,6 +14,7 @@ import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { Scalar } from "@babylonjs/core/Maths/math.scalar";
 import { UniversalCamera } from "@babylonjs/core/Cameras/universalCamera";
 import { input } from "./input.js";
+import { preferences } from "./preferences.js";
 
 // ------------------------------------------------------- module-scope scratch
 const _pivot = new Vector3();
@@ -53,7 +54,7 @@ export class CameraRig {
         this.camera = cam;
         this.scene = scene;
 
-        this.yaw = 2.4;
+        this.yaw = 2.25;
         this.pitch = 0.17;
 
         this.distance = 6.2;
@@ -189,17 +190,17 @@ export class CameraRig {
         // -------------------------------------------------------------- fov
         const fovWant = inspecting
             ? this.baseFov * 0.88
-            : this.baseFov * (1 + speed01 * 0.19);
+            : this.baseFov * (1 + (preferences.reducedMotion ? 0 : speed01 * 0.19));
         this.fov = expDamp(this.fov, fovWant, 3.2, dt);
 
         // ------------------------------------------------------------- bank
-        this.rollTarget = inspecting ? 0 : -lean * 0.085;
-        this.roll = expDamp(this.roll, this.rollTarget, 5.0, dt);
+        this.rollTarget = inspecting || preferences.reducedMotion ? 0 : -lean * 0.085;
+        this.roll = preferences.reducedMotion ? 0 : expDamp(this.roll, this.rollTarget, 5.0, dt);
 
         // ------------------------------------------------------------ shake
         this.trauma = Math.max(0, this.trauma - dt * 1.15);
         this.shakeTime += dt;
-        const shake = this.trauma * this.trauma;
+        const shake = preferences.reducedMotion ? 0 : this.trauma * this.trauma;
 
         // ------------------------------------------------------ compose xform
         const cp = Math.cos(this.pitch);
