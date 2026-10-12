@@ -1,9 +1,119 @@
 [
   {
+    "id": "relevant-work",
+    "kind": "project",
+    "title": "Portfolio relevance engine",
+    "description": "Describe the system you're building to rank published projects. Powered by TypeSafe.",
+    "link": "https://www.edzambrano.com/portfolio#projects",
+    "image": null,
+    "isNew": true,
+    "period": null
+  },
+  {
+    "id": "design-visual-systems",
+    "kind": "project",
+    "title": "Design & Visual Systems",
+    "description": "From visual direction to reusable systems. Figma components, Blender-to-ComfyUI editorials, and CAD.",
+    "link": "https://www.edzambrano.com/portfolio/design",
+    "image": null,
+    "isNew": true,
+    "period": null
+  },
+  {
+    "id": "sphere-studies",
+    "kind": "project",
+    "title": "Sphere studies",
+    "description": "Art direction and motion for the Las Vegas Sphere. Stills and looping motion are packaged in a render pipeline and published on Next.js.",
+    "link": "https://sphere-service.vercel.app/",
+    "image": null,
+    "isNew": true,
+    "period": null
+  },
+  {
+    "id": "chesspiece",
+    "kind": "project",
+    "title": "ChessPiece",
+    "description": "Red team versus blue team, both adapting in real time during a cyber combat simulation.",
+    "link": "https://chesspiece.vercel.app/",
+    "image": null,
+    "isNew": true,
+    "period": null
+  },
+  {
+    "id": "metallstrum",
+    "kind": "project",
+    "title": "METALLSTRUM",
+    "description": "Custom workflows for digital manufacturing. Platforms are built in Blender, run through scripted rigs and exports, then into Unreal and the browser.",
+    "link": "https://metallstrum.vercel.app/",
+    "image": null,
+    "isNew": true,
+    "period": null
+  },
+  {
+    "id": "portfolio-dunes",
+    "kind": "project",
+    "title": "Portfolio Dunes",
+    "description": "A walkable portfolio on a custom WebGPU engine. Dunes, deformation, and lighting are hand-written WGSL in Babylon.js.",
+    "link": "https://groundparticles.vercel.app/",
+    "image": null,
+    "isNew": true,
+    "period": null
+  },
+  {
+    "id": "mross",
+    "kind": "project",
+    "title": "M.Ross",
+    "description": "Legal research you can ask from Claude or Cursor. It looks up law in Washington, Oregon, Kansas, Florida, and federal sources, then drafts with citations. Invite only.",
+    "link": "https://mross.evergreenlab.co/",
+    "image": null,
+    "isNew": true,
+    "period": null
+  },
+  {
+    "id": "modelista",
+    "kind": "project",
+    "title": "Modelista",
+    "description": "A fashion photography site with a live hero and client galleries.",
+    "link": "https://modelista.org/",
+    "image": null,
+    "isNew": true,
+    "period": null
+  },
+  {
+    "id": "jgs",
+    "kind": "project",
+    "title": "モノクロぶっさん",
+    "description": "A Japanese variety-show site I built for a client. Each room of the house is its own channel.",
+    "link": "https://jgs-sigma.vercel.app/",
+    "image": null,
+    "isNew": true,
+    "period": null
+  },
+  {
+    "id": "defense-site",
+    "kind": "project",
+    "title": "Defense product site",
+    "description": "A sample defense product site with a live 3D turret and spec pages. Sample site",
+    "link": "https://canopy-wheat.vercel.app/",
+    "image": null,
+    "isNew": true,
+    "period": null
+  },
+  {
+    "id": "commerce-site",
+    "kind": "project",
+    "title": "Streetwear shop",
+    "description": "A sample streetwear shop with a 3D product page and mock checkout. Sample site",
+    "link": "https://pdx-hat.vercel.app/",
+    "image": null,
+    "isNew": true,
+    "period": null
+  },
+  {
     "id": "paperz",
     "kind": "project",
     "title": "paperz",
-    "description": "A calm, editorial reader for the day's newest arXiv papers, each explained in plain English by Claude.",
+    "description": "A reader for the day's newest arXiv papers, each one explained in plain English.",
     "link": "https://paperz-chi.vercel.app/",
     "image": null,
     "isNew": true,
@@ -13,10 +123,10 @@
     "id": "ppp",
     "kind": "project",
     "title": "Portland Permit Pilot",
-    "description": "Describe your Portland project in plain English. Pilot tells you what permits you need, what it costs, what documents to file, and how long it will take.",
+    "description": "Describe your Portland project in plain English. Pilot tells you which permits you need, what they cost, which documents to file, and how long it will take.",
     "link": "https://ppp-one-orpin.vercel.app/",
     "image": null,
-    "isNew": true,
+    "isNew": false,
     "period": null
   },
   {
@@ -26,7 +136,7 @@
     "description": "Checks your prescriptions, OTCs, supplements, and the foods you eat for interactions, then explains what actually matters in plain language. Nothing gets stored.",
     "link": "https://medcheck-phi-five.vercel.app/",
     "image": null,
-    "isNew": true,
+    "isNew": false,
     "period": null
   },
   {
@@ -36,15 +146,15 @@
     "description": "Shows writers what each paragraph is doing, how the piece speeds up or slows, and where the tone wanders off track.",
     "link": "https://margin-psi.vercel.app/",
     "image": null,
-    "isNew": true,
+    "isNew": false,
     "period": null
   },
   {
     "id": "math55",
     "kind": "project",
     "title": "Math 55",
-    "description": "Study tool for Harvard's hardest math course. Abstract algebra, real analysis, complex analysis. Built it to survive it.",
-    "link": "https://math55.vercel.app",
+    "description": "A study tool for Harvard's hardest math course, covering abstract algebra, real analysis, and complex analysis. I built it to get through the class.",
+    "link": "https://math55.vercel.app/",
     "image": null,
     "isNew": false,
     "period": null
@@ -53,8 +163,8 @@
     "id": "evergreen",
     "kind": "project",
     "title": "Evergreen Lab",
-    "description": "Design agency I run. Web, print, brand. Fortune 500 clients. Data-informed, not data-boring.",
-    "link": "https://www.evergreenlab.co",
+    "description": "The design agency I run, doing web and print work for Fortune 500 clients.",
+    "link": "https://www.evergreenlab.co/",
     "image": null,
     "isNew": false,
     "period": null
@@ -63,8 +173,8 @@
     "id": "video-production",
     "kind": "project",
     "title": "Commercial Video Production",
-    "description": "Short-form video that stops the scroll. Under 12 seconds, high impact. Brands, products, campaigns.",
-    "link": null,
+    "description": "Short commercial videos, under 12 seconds, for brands and campaigns.",
+    "link": "https://www.edzambrano.com/portfolio#contact",
     "image": null,
     "isNew": false,
     "period": null
@@ -73,18 +183,8 @@
     "id": "djrank",
     "kind": "project",
     "title": "DJ Rank",
-    "description": "Just my preferred DJs ranked from in-person performances.",
+    "description": "A ranking of DJs I have seen perform in person.",
     "link": "https://djrank.vercel.app/",
-    "image": null,
-    "isNew": false,
-    "period": null
-  },
-  {
-    "id": "chesspiece",
-    "kind": "project",
-    "title": "ChessPiece - Autonomous Cyber Security Battles",
-    "description": "Autonomous red team versus blue team. Adaptive attacks, adaptive defenses, real-time cyber combat simulation.",
-    "link": "https://chesspiece-ai-battle-55ccd9ac6aca.herokuapp.com/",
     "image": null,
     "isNew": false,
     "period": null
@@ -93,8 +193,8 @@
     "id": "quantum",
     "kind": "project",
     "title": "Quantum Computing Simulator",
-    "description": "3D quantum simulator. IBM Condor, Google Sycamore, Microsoft Majorana. Interactive and visual.",
-    "link": "https://quantum-alpha.vercel.app",
+    "description": "An interactive 3D simulator of IBM Condor, Google Sycamore, and Microsoft Majorana.",
+    "link": "https://quantum-alpha.vercel.app/",
     "image": null,
     "isNew": false,
     "period": null
@@ -103,7 +203,7 @@
     "id": "printcalc",
     "kind": "project",
     "title": "Print Dimension Calculator",
-    "description": "Print dimension calculator. Bleed, trim, safe margins. Simple tool, solves a real problem.",
+    "description": "Calculates bleed, trim, and safe margins for print jobs.",
     "link": "https://printcalc-nine.vercel.app/",
     "image": null,
     "isNew": false,
@@ -113,8 +213,8 @@
     "id": "realengine",
     "kind": "project",
     "title": "RealEngine",
-    "description": "Fast image generation on custom hardware. Text to image, chat included. Try it free.",
-    "link": "https://loveaiart.com",
+    "description": "Fast image generation on custom hardware, with text-to-image and chat. Try it free.",
+    "link": "https://loveaiart.com/",
     "image": null,
     "isNew": false,
     "period": null
@@ -122,9 +222,9 @@
   {
     "id": "neurovista",
     "kind": "project",
-    "title": "Medical Triage and Diagnosis Tool",
-    "description": "Automated triage for clinicians. Web-based, fast, actionable.",
-    "link": "https://neurovista-app-4888db0e0c58.herokuapp.com",
+    "title": "NeuroVista",
+    "description": "A web-based triage and diagnosis tool for clinicians.",
+    "link": "https://neurovista-app-4888db0e0c58.herokuapp.com/",
     "image": null,
     "isNew": false,
     "period": null
@@ -133,8 +233,8 @@
     "id": "3dviewer",
     "kind": "project",
     "title": "3D Model Visualizer",
-    "description": "Cloud 3D viewer. Upload, visualize, share. Handles complex models.",
-    "link": "https://3-dview.vercel.app",
+    "description": "Upload a 3D model, view it in the browser, and share a link.",
+    "link": "https://3-dview.vercel.app/",
     "image": null,
     "isNew": false,
     "period": null
@@ -142,8 +242,8 @@
   {
     "id": "llmios",
     "kind": "project",
-    "title": "Local LLM Integration for iOS",
-    "description": "Offline language model chat for iOS. MobileBERT on-device. No internet, still smart.",
+    "title": "Locally",
+    "description": "On-device iOS chat using MobileBERT. It works fully offline.",
     "link": "https://apps.apple.com/app/locally-ai-private-ai-chat/id6741426692",
     "image": null,
     "isNew": false,
@@ -152,8 +252,8 @@
   {
     "id": "videogen",
     "kind": "project",
-    "title": "Cross-Model video generation",
-    "description": "Ultra-fast video generation. Diffusion distillation. Experimental but promising.",
+    "title": "Cross-model video generation",
+    "description": "Fast video generation using diffusion distillation. Still experimental.",
     "link": null,
     "image": null,
     "isNew": false,

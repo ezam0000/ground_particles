@@ -4,7 +4,7 @@
     "kind": "school",
     "title": "Columbia University",
     "period": "2020",
-    "description": "MS, Computer Engineering. Completed 19 credits before leaving to join Apple.",
+    "description": "Master's in Computer Engineering. I completed 19 credits before leaving to join Apple.",
     "link": null,
     "image": "/assets/portfolio/org/columbia-university.jpeg",
     "isNew": false
@@ -14,7 +14,7 @@
     "kind": "school",
     "title": "Baruch College",
     "period": "2017 - 2019",
-    "description": "BS, Finance. Zicklin School of Business, City University of New York.",
+    "description": "Bachelor of Science in Finance from the Zicklin School of Business, City University of New York.",
     "link": null,
     "image": "/assets/portfolio/org/baruch-college.jpeg",
     "isNew": false
@@ -24,7 +24,7 @@
     "kind": "school",
     "title": "Northeastern University",
     "period": "2015 - 2017",
-    "description": "BS, Business Administration and Management. Transferred to Baruch College.",
+    "description": "Bachelor's in Business Administration and Management. I transferred to Baruch College.",
     "link": null,
     "image": "/assets/portfolio/org/northeastern-university.jpeg",
     "isNew": false

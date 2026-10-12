@@ -43,8 +43,10 @@ const TARGET_HEIGHT = 2.2;
 const CARD_RANGE = 3.8;
 const INSPECT_RANGE = 5.2;
 const CHAR_RADIUS = 0.45;
-/** Shaft collision — must leave a walkable gap on the project arc (~2.15m centres). */
+/** Shaft collision — project rows keep at least ~2.15m between centres. */
 const COLLIDE_RADIUS = 0.38;
+const PROJECT_ROW_CAPACITY = 16;
+const PROJECT_ROW_SPACING = 3;
 
 const PLAZAS = {
     school: {
@@ -196,9 +198,15 @@ export class Pedestals {
             const n = list.length;
             for (let i = 0; i < n; i++) {
                 const entry = { ...list[i], _zone: zone, _i: i };
-                const t = n === 1 ? 0.5 : i / (n - 1);
+                // Additional projects share this plaza in a second row, rather
+                // than narrowing the gaps below the character's walking width.
+                const row = zone === "project" ? Math.floor(i / PROJECT_ROW_CAPACITY) : 0;
+                const rowStart = row * PROJECT_ROW_CAPACITY;
+                const rowCount = zone === "project" ? Math.min(PROJECT_ROW_CAPACITY, n - rowStart) : n;
+                const index = zone === "project" ? i - rowStart : i;
+                const t = rowCount === 1 ? 0.5 : index / (rowCount - 1);
                 const a = plaza.arcStart + t * plaza.arcSpan;
-                const r = plaza.radius * 0.72;
+                const r = plaza.radius * 0.72 + row * PROJECT_ROW_SPACING;
                 const x = plaza.cx + Math.cos(a) * r;
                 const z = plaza.cz + Math.sin(a) * r;
                 this._plant(entry, x, z, plaza);
